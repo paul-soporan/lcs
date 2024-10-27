@@ -100,6 +100,7 @@ fn negation(input: &str) -> Option<CompoundProposition> {
         })
 }
 
+// TODO: Support indices
 fn atomic_proposition(input: &str) -> Option<AtomicProposition> {
     if let Some(c) = input.chars().next()
         && c.is_alphanumeric()

@@ -3,15 +3,17 @@
 use std::io;
 
 use describe::{subscript, Describe, Description};
+use evaluate::{Evaluate, Interpretation};
 use parser::proposition;
 
 mod ast;
 mod describe;
+mod evaluate;
 mod parser;
 
 fn describe(input: &str, expected: Option<bool>, i: Option<usize>) {
     let result = proposition(input);
-
+    println!("{:#?}", result);
     let first_id = 1;
     let Description { description, valid } = result.describe(2, first_id);
 
@@ -29,6 +31,21 @@ fn describe(input: &str, expected: Option<bool>, i: Option<usize>) {
 
     println!("  {}\n", description);
     println!("  Conclusion: {mark} T{} {is} a well formed propositional formula (wff) as defined by the syntax of the language of propositional logic.\n\n", subscript(first_id));
+
+    // let interpretation = Interpretation(HashMap::from([
+    //     (ast::PropositionalVariable("P".to_owned()), true),
+    //     (ast::PropositionalVariable("Q".to_owned()), false),
+    //     (ast::PropositionalVariable("R".to_owned()), true),
+    //     (ast::PropositionalVariable("S".to_owned()), false),
+    //     (ast::PropositionalVariable("T".to_owned()), true),
+    // ]));
+    // let t = result.evaluate(&interpretation);
+    // println!("{}", t);
+    let f = Interpretation::all(&["P", "Q"]);
+    for interpretation in f {
+        println!("{}", interpretation);
+        println!("{}", result.evaluate(&interpretation));
+    }
 }
 
 fn main() {
@@ -38,11 +55,12 @@ fn main() {
     let input = input.trim();
     if input.is_empty() {
         let test_cases = [
-            ("(((P ⇒ Q) ∨ S) ⇔ T)", true),
-            ("((P ⇒ (Q ∧ (S ⇒ T))))", false),
-            ("(¬(B(¬Q)) ∧ R)", false),
-            ("(P ∧ ((¬Q) ∧ (¬(¬(Q ⇔ (¬R))))))", true),
-            ("((P ∨ Q) ⇒ ¬(P ∨ Q)) ∧ (P ∨ (¬(¬Q)))", false),
+            // ("(((P ⇒ Q) ∨ S) ⇔ T)", true),
+            // ("((P ⇒ (Q ∧ (S ⇒ T))))", false),
+            // ("(¬(B(¬Q)) ∧ R)", false),
+            // ("(P ∧ ((¬Q) ∧ (¬(¬(Q ⇔ (¬R))))))", true),
+            // ("((P ∨ Q) ⇒ ¬(P ∨ Q)) ∧ (P ∨ (¬(¬Q)))", false),
+            ("((P ⇔ Q) ⇔ (¬(P ⇒ (¬Q))))", true),
         ];
 
         for (i, &(input, expected)) in test_cases.iter().enumerate() {

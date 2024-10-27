@@ -6,7 +6,7 @@ pub struct Invalid {
     pub reason: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct PropositionalVariable(pub String);
 
 #[derive(Debug)]
