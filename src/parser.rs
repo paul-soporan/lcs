@@ -1,121 +1,152 @@
-use crate::ast::{
-    AtomicProposition, BinaryOperation, CompoundProposition, Invalid, Proposition,
-    PropositionalVariable, UnaryOperation,
+use std::fmt::Debug;
+
+use colored::Colorize;
+use winnow::{
+    ascii::space0,
+    combinator::{alt, cut_err, delimited, preceded},
+    error::{ContextError, ErrMode, StrContext, StrContextValue},
+    token::one_of,
+    PResult, Parser,
 };
-use unicode_segmentation::UnicodeSegmentation;
 
-pub fn proposition(input: &str) -> Proposition {
-    if let Some(p) = compound_proposition(input) {
-        Proposition::Compound(Box::new(p))
-    } else if let Some(p) = atomic_proposition(input) {
-        Proposition::Atomic(p)
-    } else {
-        Proposition::Invalid(Invalid {
-            input: input.to_owned(),
-            reason: negation(input)
-                .or_else(|| operation(input))
-                .and_then(|p| match p {
-                    CompoundProposition::Invalid(_) => None,
-                    _ => Some("compound propositions must be parenthesized".to_owned()),
-                }),
-        })
-    }
+use crate::ast::{
+    BinaryOperation, CompoundProposition, Proposition, PropositionalVariable, UnaryOperation,
+};
+
+type Input<'a> = &'a str;
+
+const BINARY_LOGICAL_CONNECTIVES: [char; 4] = ['∧', '∨', '⇒', '⇔'];
+
+pub fn parse(input: &str) -> Result<Proposition, String> {
+    let result = proposition.parse(input);
+    result.map_err(|e| e.to_string())
 }
 
-fn compound_proposition(input: &str) -> Option<CompoundProposition> {
-    input
-        .strip_prefix('(')
-        .and_then(|input| match input.strip_suffix(')') {
-            Some(input) => operation(input),
-            None => panic!("Expected closing parenthesis"),
-        })
+fn proposition(input: &mut Input) -> PResult<Proposition> {
+    describe(
+        alt((
+            compound_proposition.map(|p| p.into()),
+            propositional_variable.map(|p| p.into()),
+        )),
+        "proposition",
+    )
+    .parse_next(input)
 }
 
-fn operation(input: &str) -> Option<CompoundProposition> {
-    let mut paren_stack = 0;
+fn compound_proposition(input: &mut Input) -> PResult<CompoundProposition> {
+    delimited(
+        '(',
+        alt((binary_operation, negation)),
+        ')'.context(StrContext::Expected(StrContextValue::Description(
+            "closing parenthesis",
+        ))),
+    )
+    .parse_next(input)
+}
 
-    let operator = input.grapheme_indices(true).find(|&(_, c)| {
-        if paren_stack == 0 && "∧∨⇒⇔".contains(c) {
-            return true;
-        }
+fn binary_operation(input: &mut Input) -> PResult<CompoundProposition> {
+    describe(
+        (
+            proposition,
+            describe(
+                cut_err(
+                    delimited(space0, one_of(BINARY_LOGICAL_CONNECTIVES), space0).context(
+                        StrContext::Expected(StrContextValue::Description(
+                            "binary logical connective",
+                        )),
+                    ),
+                ),
+                "binary logical connective",
+            ),
+            cut_err(
+                proposition
+                    .context(StrContext::Label("right-hand side"))
+                    .context(StrContext::Expected(StrContextValue::Description(
+                        "proposition",
+                    ))),
+            ),
+        )
+            .map(|(left, op, right)| {
+                let operation = match op {
+                    '∧' => BinaryOperation::Conjunction,
+                    '∨' => BinaryOperation::Disjunction,
+                    '⇒' => BinaryOperation::Implication,
+                    '⇔' => BinaryOperation::Equivalence,
+                    _ => unreachable!("Invalid operator"),
+                };
 
-        match c {
-            "(" => paren_stack += 1,
-            ")" => paren_stack -= 1,
-            _ => (),
-        }
+                CompoundProposition::BinaryOperation {
+                    operation,
+                    left,
+                    right,
+                }
+            }),
+        "binary operation",
+    )
+    .parse_next(input)
+}
 
-        return false;
-    });
-
-    let (pos, op) = match operator {
-        Some((pos, op)) => (pos, op),
-        None => {
-            let neg = negation(input);
-            if neg.is_some() {
-                return neg;
+fn negation(input: &mut Input) -> PResult<CompoundProposition> {
+    describe(
+        preceded(describe('¬', "unary logical connective"), proposition).map(|p| {
+            CompoundProposition::UnaryOperation {
+                operation: UnaryOperation::Negation,
+                proposition: p,
             }
-
-            return Some(CompoundProposition::Invalid(Invalid {
-                input: input.to_owned(),
-                reason: {
-                    let p = proposition(input);
-                    match p {
-                        Proposition::Invalid(_) => None,
-                        _ => Some(
-                            "propositions can't be formed by parenthesizing other propositions"
-                                .to_owned(),
-                        ),
-                    }
-                },
-            }));
-        }
-    };
-
-    let lhs = &input[..pos];
-    let rhs = &input[pos + op.len() + 1..];
-
-    let left = proposition(lhs.trim());
-    let right = proposition(rhs.trim());
-
-    Some(CompoundProposition::BinaryOperation {
-        operation: match op {
-            "∧" => BinaryOperation::Conjunction,
-            "∨" => BinaryOperation::Disjunction,
-            "⇒" => BinaryOperation::Implication,
-            "⇔" => BinaryOperation::Equivalence,
-            _ => unreachable!("Invalid operator"),
-        },
-        left,
-        right,
-    })
+        }),
+        "negation",
+    )
+    .parse_next(input)
 }
 
-fn negation(input: &str) -> Option<CompoundProposition> {
-    input
-        .strip_prefix('¬')
-        .map(|input| CompoundProposition::UnaryOperation {
-            operation: UnaryOperation::Negation,
-            proposition: proposition(input),
-        })
+// TODO: Support indices.
+fn propositional_variable(input: &mut Input) -> PResult<PropositionalVariable> {
+    describe(
+        one_of('A'..='Z').map(|name: char| PropositionalVariable(name.to_string())),
+        "propositional variable",
+    )
+    .parse_next(input)
 }
 
-// TODO: Support indices
-fn atomic_proposition(input: &str) -> Option<AtomicProposition> {
-    if let Some(c) = input.chars().next()
-        && c.is_alphanumeric()
-    {
-        if c.is_uppercase() {
-            Some(AtomicProposition::PropositionalVariable(
-                PropositionalVariable(c.to_string()),
-            ))
-        } else {
-            Some(AtomicProposition::Invalid(Invalid {
-                input: input.to_owned(),
-                reason: None,
-            }))
+fn indent(indentation: usize) -> String {
+    " ".repeat(indentation)
+}
+
+static mut INDENTATION: usize = 0;
+const INDENT_STEP: usize = 2;
+
+fn describe_str(s: impl AsRef<str>) {
+    println!("{}{}", indent(unsafe { INDENTATION }), s.as_ref());
+}
+
+fn describe<'a, T>(
+    mut parser: impl Parser<Input<'a>, T, ContextError>,
+    what: &'static str,
+) -> impl FnMut(&mut Input<'a>) -> PResult<T>
+where
+    T: Debug,
+{
+    move |input| {
+        describe_str(
+            format!("Trying to parse a {} at '{}'", what.magenta(), input.blue()).as_str(),
+        );
+
+        unsafe { INDENTATION += INDENT_STEP };
+        let result = parser.parse_next(input);
+        unsafe { INDENTATION -= INDENT_STEP };
+
+        match &result {
+            Ok(result) => describe_str(format!("=> {}", format!("{result:?}").green())),
+            Err(e) => match e {
+                ErrMode::Backtrack(_) => describe_str(format!("=> {}", "Backtrack".yellow())),
+                ErrMode::Cut(e) => describe_str(format!(
+                    "=> Fatal parsing error: {}",
+                    e.to_string().replace("\n", "; ").red()
+                )),
+                ErrMode::Incomplete(_) => unimplemented!(),
+            },
         }
-    } else {
-        None
+
+        result
     }
 }

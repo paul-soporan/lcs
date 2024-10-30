@@ -1,72 +1,178 @@
 #![feature(let_chains)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 
-use std::io;
-
-use describe::{subscript, Describe, Description};
-use evaluate::{Evaluate, Interpretation};
-use parser::proposition;
+use ast::{BinaryOperation, CompoundProposition};
+use colored::Colorize;
+use evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation};
+use parser::parse;
 
 mod ast;
-mod describe;
 mod evaluate;
 mod parser;
 
-fn describe(input: &str, expected: Option<bool>, i: Option<usize>) {
-    let result = proposition(input);
-    println!("{:#?}", result);
-    let first_id = 1;
-    let Description { description, valid } = result.describe(2, first_id);
+fn get_letter(i: usize) -> char {
+    (b'a' + i as u8) as char
+}
 
-    if let Some(expected) = expected {
-        assert_eq!(valid, expected);
+fn exercise_1() {
+    println!("Exercise 1)\n");
+
+    let parts = [
+        "((P ∧ Q) ⇒ R)",
+        "((¬P) ⇒ S)",
+        "((¬Q) ⇒ T)",
+        "(¬R)",
+        "(U ⇒ (¬(S ∨ T)))",
+    ];
+
+    let mut parts = parts
+        .iter()
+        .map(|part| parse(part).unwrap())
+        .collect::<Vec<_>>();
+
+    println!();
+
+    let rest = parts.split_off(1);
+    let first = parts.pop().unwrap();
+
+    let p = rest.into_iter().fold(first, |acc, part| {
+        CompoundProposition::BinaryOperation {
+            operation: BinaryOperation::Conjunction,
+            left: acc,
+            right: part,
+        }
+        .into()
+    });
+
+    println!("Proposition: {}\n", p.to_string().blue());
+
+    let interpretation = Interpretation::generate_all(p.get_variables().value)
+        .nth(6)
+        .unwrap();
+
+    println!("Let I ≔ {}\n", interpretation.to_string().blue());
+
+    let ExplainedValue { value, steps } = p.evaluate(&interpretation);
+
+    for step in steps {
+        println!("{}", step);
     }
 
-    let mark = if valid { "✅" } else { "❌" };
-    let is = if valid { "is" } else { "is not" };
+    println!(
+        "=> The value of the proposition under interpretation I is {}.\n",
+        value.to_string().magenta()
+    );
+}
 
-    if let Some(i) = i {
-        let exercise_letter = ('a' as u8 + i as u8) as char;
-        println!("({exercise_letter}):\n");
+fn exercise_2() {
+    println!("Exercise 2)\n");
+
+    let test_cases = [
+        "(((P ⇒ Q) ∨ S) ⇔ T)",
+        "((P ⇒ (Q ∧ (S ⇒ T))))",
+        "(¬(B(¬Q)) ∧ R)",
+        "((P ⇒ Q) ∧ ((¬Q) ∧ P))",
+        "((P ⇒ Q) ⇒ (Q ⇒ P))",
+        "((¬(P ∨ Q)) ∧ (¬Q))",
+    ];
+
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("{})\n", get_letter(i));
+
+        println!("Input: {}\n", input.blue());
+
+        let result = parse(input);
+        println!();
+
+        match result {
+            Ok(p) => {
+                println!("Abstract syntax tree:\n  {}\n", format!("{p:#?}").blue());
+
+                let ExplainedValue {
+                    value: variables,
+                    steps,
+                } = p.get_variables();
+
+                for step in steps {
+                    println!("{}", step);
+                }
+
+                println!(
+                    "\nGenerating 3 interpretations for variable set: {}",
+                    variables.to_string().blue()
+                );
+
+                let interpretations = Interpretation::generate_all(variables).take(3);
+                for (i, interpretation) in interpretations.enumerate() {
+                    println!(
+                        "  Interpretation {}:\n    Let I ≔ {}",
+                        i.to_string().yellow(),
+                        interpretation.to_string().blue()
+                    );
+                    let Evaluation { value, steps } = p.evaluate(&interpretation);
+
+                    for step in steps {
+                        println!("      {}", step);
+                    }
+                    println!(
+                        "    => The value of the proposition under interpretation I is {}.",
+                        value.to_string().magenta()
+                    );
+                }
+            }
+            Err(_) => {
+                println!("Parsing error; nothing to analyze\n");
+            }
+        }
+
+        println!();
     }
+}
 
-    println!("  {}\n", description);
-    println!("  Conclusion: {mark} T{} {is} a well formed propositional formula (wff) as defined by the syntax of the language of propositional logic.\n\n", subscript(first_id));
+fn exercise_3() {
+    println!("Exercise 3)\n");
 
-    // let interpretation = Interpretation(HashMap::from([
-    //     (ast::PropositionalVariable("P".to_owned()), true),
-    //     (ast::PropositionalVariable("Q".to_owned()), false),
-    //     (ast::PropositionalVariable("R".to_owned()), true),
-    //     (ast::PropositionalVariable("S".to_owned()), false),
-    //     (ast::PropositionalVariable("T".to_owned()), true),
-    // ]));
-    // let t = result.evaluate(&interpretation);
-    // println!("{}", t);
-    let f = Interpretation::all(&["P", "Q"]);
-    for interpretation in f {
-        println!("{}", interpretation);
-        println!("{}", result.evaluate(&interpretation));
+    let test_cases = [
+        "((P ⇒ Q) ∧ ((¬Q) ∧ (¬P)))",
+        "((P ⇒ Q) ⇒ ((Q ⇒ S) ⇒ ((P ∨ Q) ⇒ R)))",
+        "((¬(P ⇒ Q)) ⇔ ((P ∨ R) ∧ ((¬P) ⇒ Q)))",
+        "((P ⇔ Q) ⇔ (¬(P ⇒ (¬Q))))",
+    ];
+
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("{})\n", get_letter(i));
+
+        println!("Input: {}\n", input.blue());
+
+        let result = parse(input);
+        println!();
+
+        match result {
+            Ok(p) => {
+                println!("Abstract syntax tree:\n  {}\n", format!("{p:#?}").blue());
+
+                let ExplainedValue {
+                    value: attributes,
+                    steps,
+                } = p.get_attributes();
+
+                for step in steps {
+                    println!("{}", step);
+                }
+
+                println!("\n=> {}\n", format!("{attributes:#?}",).cyan());
+            }
+            Err(_) => {
+                println!("Parsing error; nothing to analyze\n");
+            }
+        }
+
+        println!();
     }
 }
 
 fn main() {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-
-    let input = input.trim();
-    if input.is_empty() {
-        let test_cases = [
-            // ("(((P ⇒ Q) ∨ S) ⇔ T)", true),
-            // ("((P ⇒ (Q ∧ (S ⇒ T))))", false),
-            // ("(¬(B(¬Q)) ∧ R)", false),
-            // ("(P ∧ ((¬Q) ∧ (¬(¬(Q ⇔ (¬R))))))", true),
-            // ("((P ∨ Q) ⇒ ¬(P ∨ Q)) ∧ (P ∨ (¬(¬Q)))", false),
-            ("((P ⇔ Q) ⇔ (¬(P ⇒ (¬Q))))", true),
-        ];
-
-        for (i, &(input, expected)) in test_cases.iter().enumerate() {
-            describe(input, Some(expected), Some(i));
-        }
-    } else {
-        describe(input, None, None);
-    }
+    exercise_1();
+    exercise_2();
+    exercise_3();
 }
