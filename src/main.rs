@@ -1,13 +1,17 @@
 #![feature(let_chains)]
 #![feature(anonymous_lifetime_in_impl_trait)]
+#![feature(box_patterns)]
 
-use ast::{BinaryOperation, CompoundProposition};
+use ast::{LogicalConsequence, PropositionalVariable, TruthTable};
 use colored::Colorize;
-use evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation};
-use parser::parse;
+use evaluate::ExplainedValue;
+use indexmap::{indexmap, IndexMap};
+use markdown::Markdown;
+use parser::{parse_logical_consequence, parse_logical_equivalence, parse_proposition};
 
 mod ast;
 mod evaluate;
+mod markdown;
 mod parser;
 
 fn get_letter(i: usize) -> char {
@@ -15,164 +19,230 @@ fn get_letter(i: usize) -> char {
 }
 
 fn exercise_1() {
-    println!("Exercise 1)\n");
+    println!("# Exercise 1");
 
-    let parts = [
-        "((P ∧ Q) ⇒ R)",
-        "((¬P) ⇒ S)",
-        "((¬Q) ⇒ T)",
-        "(¬R)",
-        "(U ⇒ (¬(S ∨ T)))",
+    let test_cases = ["P ∧ Q ⇒ R¬B ∨ G", "P ⇒ ¬¬¬¬¬B ⇔ Q ∧ S"];
+
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+        println!("Input: {}", input.blue().markdown());
+
+        let ExplainedValue {
+            value: result,
+            steps,
+        } = parse_proposition(input);
+
+        println!("<pre>");
+        for step in steps {
+            println!("{}", step);
+        }
+        println!("</pre>");
+
+        println!(
+            "Proposition {} a well-formed formula.\n",
+            if result.is_ok() {
+                "is".green().markdown()
+            } else {
+                "is not".red().markdown()
+            }
+        );
+
+        if let Ok(proposition) = result {
+            println!(
+                "Proposition converted to strong syntax: {}",
+                proposition.to_string().blue().markdown()
+            );
+
+            println!("<pre>{}</pre>", proposition.get_tree());
+        }
+    }
+}
+
+fn exercise_2() {
+    println!("# Exercise 2");
+
+    let test_cases = [
+        "(P ⇒ Q) ∧ ¬Q ∧ ¬P",
+        "(P ⇒ Q) ⇒ ((Q ⇒ S) ⇒ ((P ∨ Q) ⇒ R))",
+        "¬(P ⇒ Q) ⇔ ((P ∨ R) ∧ (¬P ⇒ Q))",
+        "(P ⇔ Q) ⇔ (¬(P ⇒ ¬Q))",
     ];
 
-    let mut parts = parts
-        .iter()
-        .map(|part| parse(part).unwrap())
-        .collect::<Vec<_>>();
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+        println!("Proposition: {}", input.blue().markdown());
 
-    println!();
+        let ExplainedValue { value: result, .. } = parse_proposition(input);
 
-    let rest = parts.split_off(1);
-    let first = parts.pop().unwrap();
+        let proposition = result.unwrap();
 
-    let p = rest.into_iter().fold(first, |acc, part| {
-        CompoundProposition::BinaryOperation {
-            operation: BinaryOperation::Conjunction,
-            left: acc,
-            right: part,
+        let truth_table = TruthTable::new(&[&proposition]);
+        println!("{}", truth_table);
+
+        let attributes = truth_table.get_attributes(&proposition);
+        println!("<pre>{attributes:#?}</pre>");
+    }
+}
+
+fn exercise_3() {
+    println!("# Exercise 3");
+
+    let test_cases: IndexMap<&str, &[&str]> = indexmap! {
+        "Reduction Laws" => [
+            "(F ⇔ G) ∼ (F ⇒ G) ∧ (G ⇒ F)",
+            "(F ⇒ G) ∼ (¬F ∨ G)",
+        ].as_slice(),
+
+        "Commutative Laws" => [
+            "F ∨ G ∼ G ∨ F",
+            "F ∧ G ∼ G ∧ F",
+
+            "F ⇔ G ∼ G ⇔ F",
+        ].as_slice(),
+
+        "Associative Laws" => [
+            "(F ∨ G) ∨ H ∼ F ∨ (G ∨ H)",
+            "(F ∧ G) ∧ H ∼ F ∧ (G ∧ H)",
+            "(F ⇔ G) ⇔ H ∼ F ⇔ (G ⇔ H)",
+        ].as_slice(),
+
+        "Distributive Laws" => [
+            "F ∨ (G ∧ H) ∼ (F ∨ G) ∧ (F ∨ H)",
+            "F ∧ (G ∨ H) ∼ (F ∧ G) ∨ (F ∧ H)",
+
+            "(F ∨ G) ⇒ H ∼ (F ⇒ H) ∧ (G ⇒ H)",
+            "(F ∧ G) ⇒ H ∼ (F ⇒ H) ∨ (G ⇒ H)",
+            "F ⇒ (G ∨ H) ∼ (F ⇒ G) ∨ (F ⇒ H)",
+            "F ⇒ (G ∧ H) ∼ (F ⇒ G) ∧ (F ⇒ H)",
+            "(F ∧ G) ⇒ H ∼ F ⇒ (G ⇒ H)",
+        ].as_slice(),
+
+        "Laws of “True” and “False”" => [
+            "¬⊤ ∼ ⊥",
+            "¬⊥ ∼ ⊤",
+            "F ∨ ⊥ ∼ F",
+            "F ∧ ⊤ ∼ F",
+            "F ∨ ⊤ ∼ ⊤",
+            "F ∧ ⊥ ∼ ⊥",
+            "⊥ ⇒ F ∼ ⊤",
+            "F ⇒ ⊤ ∼ ⊤",
+        ].as_slice(),
+
+        "Idempocy rules" => [
+            "F ∧ F ∼ F",
+            "F ∨ F ∼ F",
+        ].as_slice(),
+
+        "Absorption Laws" => [
+            "F ∨ (F ∧ G) ∼ F",
+            "F ∧ (F ∨ G) ∼ F",
+        ].as_slice(),
+
+        "“Annihilation” Laws" => [
+            "F ∨ ¬F ∼ ⊤",
+            "F ∧ ¬F ∼ ⊥",
+
+            "F ⇒ F ∼ ⊤",
+        ].as_slice(),
+
+        "Negation Laws" => [
+            "¬(¬F) ∼ F",
+            "¬(F ∨ G) ∼ ¬F ∧ ¬G",
+            "¬(F ∧ G) ∼ ¬F ∨ ¬G",
+
+            "¬(F ⇒ G) ∼ F ∧ (¬G)",
+            "¬(F ⇔ G) ∼ F ⇔ (¬G)",
+        ].as_slice(),
+
+        "Other Laws" => [
+            "F ⇒ G ∼ F ⇔ (F ∧ G)",
+            "F ⇒ G ∼ G ⇔ (F ∨ G)",
+        ].as_slice(),
+    };
+
+    for (group_name, inputs) in test_cases {
+        println!("## {group_name}");
+        for (i, input) in inputs.iter().enumerate() {
+            println!("### {})", get_letter(i));
+            println!("Logical equivalence: {}", input.blue().markdown());
+
+            let equivalence = parse_logical_equivalence(input).value.unwrap();
+
+            let ExplainedValue { value, steps } = equivalence.check();
+            for step in steps {
+                println!("{}", step);
+            }
+
+            println!(
+                "=> Logical equivalence {}.",
+                if value {
+                    "holds".green().markdown()
+                } else {
+                    "doesn't hold".red().markdown()
+                }
+            );
         }
-        .into()
-    });
+    }
+}
 
-    println!("Proposition: {}\n", p.to_string().blue());
+fn exercise_4() {
+    println!("# Exercise 4");
 
-    let interpretation = Interpretation::generate_all(p.get_variables().value)
-        .nth(6)
-        .unwrap();
+    let test_cases = ["Q ∨ R, Q ⇒ ¬P, ¬(R ∧ P) ⊨ ¬P", "P ⇒ Q, Q ⊨ P ∧ Q"];
 
-    println!("Let I ≔ {}\n", interpretation.to_string().blue());
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+        println!("Logical consequence: {}\n", input.blue().markdown());
 
-    let ExplainedValue { value, steps } = p.evaluate(&interpretation);
+        let consequence = parse_logical_consequence(input).value.unwrap();
 
+        let ExplainedValue { value, steps } = consequence.check();
+        for step in steps {
+            println!("{}", step);
+        }
+
+        println!(
+            "=> Logical consequence {}.\n",
+            if value {
+                "holds".green().markdown()
+            } else {
+                "doesn't hold".red().markdown()
+            }
+        );
+    }
+}
+
+fn exercise_5() {
+    println!("# Exercise 5");
+
+    let parts = ["A ∧ W ⇒ P", "¬A ⇒ I", "¬W ⇒ M", "¬P", "E ⇒ ¬(I ∨ M)"];
+
+    let premises = parts.map(|part| parse_proposition(part).value.unwrap());
+
+    let logical_consequence = LogicalConsequence {
+        premises: premises.to_vec(),
+        conclusion: PropositionalVariable("E".to_owned()).into(),
+    };
+
+    let ExplainedValue { value, steps } = logical_consequence.check();
     for step in steps {
         println!("{}", step);
     }
 
     println!(
-        "=> The value of the proposition under interpretation I is {}.\n",
-        value.to_string().magenta()
+        "=> Logical consequence is {}.\n",
+        if value {
+            "E".green().markdown()
+        } else {
+            "¬E".red().markdown()
+        }
     );
-}
-
-fn exercise_2() {
-    println!("Exercise 2)\n");
-
-    let test_cases = [
-        "(((P ⇒ Q) ∨ S) ⇔ T)",
-        "((P ⇒ (Q ∧ (S ⇒ T))))",
-        "(¬(B(¬Q)) ∧ R)",
-        "((P ⇒ Q) ∧ ((¬Q) ∧ P))",
-        "((P ⇒ Q) ⇒ (Q ⇒ P))",
-        "((¬(P ∨ Q)) ∧ (¬Q))",
-    ];
-
-    for (i, input) in test_cases.iter().enumerate() {
-        println!("{})\n", get_letter(i));
-
-        println!("Input: {}\n", input.blue());
-
-        let result = parse(input);
-        println!();
-
-        match result {
-            Ok(p) => {
-                println!("Abstract syntax tree:\n  {}\n", format!("{p:#?}").blue());
-
-                let ExplainedValue {
-                    value: variables,
-                    steps,
-                } = p.get_variables();
-
-                for step in steps {
-                    println!("{}", step);
-                }
-
-                println!(
-                    "\nGenerating 3 interpretations for variable set: {}",
-                    variables.to_string().blue()
-                );
-
-                let interpretations = Interpretation::generate_all(variables).take(3);
-                for (i, interpretation) in interpretations.enumerate() {
-                    println!(
-                        "  Interpretation {}:\n    Let I ≔ {}",
-                        i.to_string().yellow(),
-                        interpretation.to_string().blue()
-                    );
-                    let Evaluation { value, steps } = p.evaluate(&interpretation);
-
-                    for step in steps {
-                        println!("      {}", step);
-                    }
-                    println!(
-                        "    => The value of the proposition under interpretation I is {}.",
-                        value.to_string().magenta()
-                    );
-                }
-            }
-            Err(_) => {
-                println!("Parsing error; nothing to analyze\n");
-            }
-        }
-
-        println!();
-    }
-}
-
-fn exercise_3() {
-    println!("Exercise 3)\n");
-
-    let test_cases = [
-        "((P ⇒ Q) ∧ ((¬Q) ∧ (¬P)))",
-        "((P ⇒ Q) ⇒ ((Q ⇒ S) ⇒ ((P ∨ Q) ⇒ R)))",
-        "((¬(P ⇒ Q)) ⇔ ((P ∨ R) ∧ ((¬P) ⇒ Q)))",
-        "((P ⇔ Q) ⇔ (¬(P ⇒ (¬Q))))",
-    ];
-
-    for (i, input) in test_cases.iter().enumerate() {
-        println!("{})\n", get_letter(i));
-
-        println!("Input: {}\n", input.blue());
-
-        let result = parse(input);
-        println!();
-
-        match result {
-            Ok(p) => {
-                println!("Abstract syntax tree:\n  {}\n", format!("{p:#?}").blue());
-
-                let ExplainedValue {
-                    value: attributes,
-                    steps,
-                } = p.get_attributes();
-
-                for step in steps {
-                    println!("{}", step);
-                }
-
-                println!("\n=> {}\n", format!("{attributes:#?}",).cyan());
-            }
-            Err(_) => {
-                println!("Parsing error; nothing to analyze\n");
-            }
-        }
-
-        println!();
-    }
 }
 
 fn main() {
     exercise_1();
     exercise_2();
     exercise_3();
+    exercise_4();
+    exercise_5();
 }

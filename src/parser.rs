@@ -1,111 +1,245 @@
-use std::fmt::Debug;
+use std::{any::Any, fmt::Debug};
 
 use colored::Colorize;
 use winnow::{
     ascii::space0,
-    combinator::{alt, cut_err, delimited, preceded},
+    combinator::{
+        alt, cut_err, delimited, eof, preceded, separated, separated_foldr1, separated_pair,
+        terminated,
+    },
     error::{ContextError, ErrMode, StrContext, StrContextValue},
     token::one_of,
-    PResult, Parser,
+    PResult, Parser, Stateful,
 };
 
-use crate::ast::{
-    BinaryOperation, CompoundProposition, Proposition, PropositionalVariable, UnaryOperation,
+use crate::{
+    ast::{
+        BinaryOperation, CompoundProposition, LogicalConsequence, LogicalEquivalence,
+        NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
+    },
+    evaluate::ExplainedValue,
+    markdown::Markdown,
 };
 
-type Input<'a> = &'a str;
+#[derive(Debug)]
+struct State {
+    steps: Vec<String>,
+}
 
-const BINARY_LOGICAL_CONNECTIVES: [char; 4] = ['∧', '∨', '⇒', '⇔'];
+type Input<'a> = Stateful<&'a str, State>;
 
-pub fn parse(input: &str) -> Result<Proposition, String> {
-    let result = proposition.parse(input);
-    result.map_err(|e| e.to_string())
+fn make_parser<'a, T>(
+    parser: impl Parser<Input<'a>, T, ContextError>,
+    input: &'a str,
+) -> ExplainedValue<Result<T, String>> {
+    let steps = Vec::new();
+    let state = State { steps };
+    let mut input = Stateful { input, state };
+
+    let result = terminated(
+        parser,
+        describe(
+            cut_err(
+                eof.void()
+                    .context(StrContext::Expected(StrContextValue::Description(
+                        "end of input",
+                    ))),
+            ),
+            "end of input",
+        ),
+    )
+    .parse_next(&mut input);
+
+    ExplainedValue {
+        value: result.map_err(|e| e.to_string()),
+        steps: input.state.steps,
+    }
+}
+
+pub fn parse_logical_consequence(
+    input: &str,
+) -> ExplainedValue<Result<LogicalConsequence, String>> {
+    make_parser(logical_consequence, input)
+}
+
+pub fn parse_logical_equivalence(
+    input: &str,
+) -> ExplainedValue<Result<LogicalEquivalence, String>> {
+    make_parser(logical_equivalence, input)
+}
+
+fn logical_consequence(input: &mut Input) -> PResult<LogicalConsequence> {
+    separated_pair(
+        separated(0.., proposition, spaced(',')),
+        spaced('⊨'),
+        proposition,
+    )
+    .map(|(premises, conclusion)| LogicalConsequence {
+        premises,
+        conclusion,
+    })
+    .parse_next(input)
+}
+
+fn logical_equivalence(input: &mut Input) -> PResult<LogicalEquivalence> {
+    separated_pair(proposition, spaced('∼'), proposition)
+        .map(|(left, right)| LogicalEquivalence { left, right })
+        .parse_next(input)
+}
+
+pub fn parse_proposition(input: &str) -> ExplainedValue<Result<Proposition, String>> {
+    make_parser(proposition, input)
 }
 
 fn proposition(input: &mut Input) -> PResult<Proposition> {
-    describe(
-        alt((
-            compound_proposition.map(|p| p.into()),
-            propositional_variable.map(|p| p.into()),
-        )),
-        "proposition",
-    )
-    .parse_next(input)
+    describe(equivalence, "proposition").parse_next(input)
 }
 
-fn compound_proposition(input: &mut Input) -> PResult<CompoundProposition> {
-    delimited(
-        '(',
-        alt((binary_operation, negation)),
-        ')'.context(StrContext::Expected(StrContextValue::Description(
-            "closing parenthesis",
-        ))),
-    )
-    .parse_next(input)
-}
-
-fn binary_operation(input: &mut Input) -> PResult<CompoundProposition> {
+fn equivalence(input: &mut Input) -> PResult<Proposition> {
     describe(
-        (
-            proposition,
-            describe(
-                cut_err(
-                    delimited(space0, one_of(BINARY_LOGICAL_CONNECTIVES), space0).context(
-                        StrContext::Expected(StrContextValue::Description(
-                            "binary logical connective",
-                        )),
-                    ),
-                ),
-                "binary logical connective",
-            ),
-            cut_err(
-                proposition
-                    .context(StrContext::Label("right-hand side"))
-                    .context(StrContext::Expected(StrContextValue::Description(
-                        "proposition",
-                    ))),
-            ),
-        )
-            .map(|(left, op, right)| {
-                let operation = match op {
-                    '∧' => BinaryOperation::Conjunction,
-                    '∨' => BinaryOperation::Disjunction,
-                    '⇒' => BinaryOperation::Implication,
-                    '⇔' => BinaryOperation::Equivalence,
-                    _ => unreachable!("Invalid operator"),
-                };
-
+        separated_foldr1(
+            implication,
+            spaced(describe('⇔', "equivalence logical connective")),
+            |left, _, right| {
                 CompoundProposition::BinaryOperation {
-                    operation,
+                    operation: BinaryOperation::Equivalence,
                     left,
                     right,
                 }
-            }),
-        "binary operation",
+                .into()
+            },
+        ),
+        "equivalence",
     )
     .parse_next(input)
 }
 
-fn negation(input: &mut Input) -> PResult<CompoundProposition> {
+fn implication(input: &mut Input) -> PResult<Proposition> {
     describe(
-        preceded(describe('¬', "unary logical connective"), proposition).map(|p| {
+        separated_foldr1(
+            conjunction_or_disjunction,
+            spaced(describe('⇒', "implication logical connective")),
+            |left, _, right| {
+                CompoundProposition::BinaryOperation {
+                    operation: BinaryOperation::Implication,
+                    left,
+                    right,
+                }
+                .into()
+            },
+        ),
+        "implication",
+    )
+    .parse_next(input)
+}
+
+fn conjunction_or_disjunction(input: &mut Input) -> PResult<Proposition> {
+    describe(
+        separated_foldr1(
+            base_expression,
+            spaced(describe(
+                one_of(['∧', '∨']),
+                "conjunction or disjunction logical connective",
+            )),
+            |left, sep, right| {
+                let operation = match sep {
+                    '∧' => NaryOperation::Conjunction,
+                    '∨' => NaryOperation::Disjunction,
+                    _ => unreachable!(),
+                };
+
+                match right {
+                    Proposition::Compound(box CompoundProposition::NaryOperation {
+                        operation: r_operation,
+                        mut propositions,
+                    }) if r_operation == operation => {
+                        propositions.insert(0, left);
+                        CompoundProposition::NaryOperation {
+                            operation: r_operation,
+                            propositions,
+                        }
+                    }
+
+                    _ => CompoundProposition::NaryOperation {
+                        operation,
+                        propositions: vec![left, right],
+                    },
+                }
+                .into()
+            },
+        ),
+        "conjunction or disjunction",
+    )
+    .parse_next(input)
+}
+
+fn base_expression(input: &mut Input) -> PResult<Proposition> {
+    describe(
+        alt((
+            propositional_variable,
+            parenthesized_expression,
+            negation,
+            tautology,
+            contradiction,
+        )),
+        "base expression",
+    )
+    .parse_next(input)
+}
+
+fn negation(input: &mut Input) -> PResult<Proposition> {
+    describe(
+        preceded(
+            describe('¬', "negation logical connective"),
+            base_expression,
+        )
+        .map(|p| {
             CompoundProposition::UnaryOperation {
                 operation: UnaryOperation::Negation,
                 proposition: p,
             }
+            .into()
         }),
         "negation",
     )
     .parse_next(input)
 }
 
-// TODO: Support indices.
-fn propositional_variable(input: &mut Input) -> PResult<PropositionalVariable> {
+fn parenthesized_expression(input: &mut Input) -> PResult<Proposition> {
     describe(
-        one_of('A'..='Z').map(|name: char| PropositionalVariable(name.to_string())),
+        delimited(
+            '(',
+            proposition,
+            ')'.context(StrContext::Expected(StrContextValue::Description(
+                "closing parenthesis",
+            ))),
+        ),
+        "parenthesized expression",
+    )
+    .parse_next(input)
+}
+
+fn tautology(input: &mut Input) -> PResult<Proposition> {
+    describe('⊤'.map(|_| Proposition::Tautology), "tautology").parse_next(input)
+}
+
+fn contradiction(input: &mut Input) -> PResult<Proposition> {
+    describe('⊥'.map(|_| Proposition::Contradiction), "contradiction").parse_next(input)
+}
+
+// TODO: Support indices.
+fn propositional_variable(input: &mut Input) -> PResult<Proposition> {
+    describe(
+        one_of('A'..='Z').map(|name: char| PropositionalVariable(name.to_string()).into()),
         "propositional variable",
     )
     .parse_next(input)
+}
+
+fn spaced<'a, T>(
+    parser: impl Parser<Input<'a>, T, ContextError>,
+) -> impl Parser<Input<'a>, T, ContextError> {
+    delimited(space0, parser, space0)
 }
 
 fn indent(indentation: usize) -> String {
@@ -115,11 +249,11 @@ fn indent(indentation: usize) -> String {
 static mut INDENTATION: usize = 0;
 const INDENT_STEP: usize = 2;
 
-fn describe_str(s: impl AsRef<str>) {
-    println!("{}{}", indent(unsafe { INDENTATION }), s.as_ref());
+fn describe_str(s: impl AsRef<str>) -> String {
+    format!("{}{}", indent(unsafe { INDENTATION }), s.as_ref())
 }
 
-fn describe<'a, T>(
+fn describe<'a, T: Any>(
     mut parser: impl Parser<Input<'a>, T, ContextError>,
     what: &'static str,
 ) -> impl FnMut(&mut Input<'a>) -> PResult<T>
@@ -127,25 +261,56 @@ where
     T: Debug,
 {
     move |input| {
-        describe_str(
-            format!("Trying to parse a {} at '{}'", what.magenta(), input.blue()).as_str(),
-        );
+        input.state.steps.push(describe_str(format!(
+            "Trying to parse {} at the beginning of '{}'",
+            what.magenta().markdown(),
+            input.blue().markdown()
+        )));
 
         unsafe { INDENTATION += INDENT_STEP };
         let result = parser.parse_next(input);
         unsafe { INDENTATION -= INDENT_STEP };
 
-        match &result {
-            Ok(result) => describe_str(format!("=> {}", format!("{result:?}").green())),
+        input.state.steps.push(describe_str(match &result {
+            Ok(result) => format!(
+                "=> {}",
+                format!("{}", {
+                    let result_any = result as &dyn Any;
+                    if let Some(p) = result_any.downcast_ref::<Proposition>() {
+                        let tree_display = p.get_tree().to_string();
+                        tree_display
+                            .trim_end()
+                            .split('\n')
+                            .enumerate()
+                            .map(|(i, line)| {
+                                format!(
+                                    "{}{}",
+                                    indent(if i == 0 {
+                                        0
+                                    } else {
+                                        unsafe { INDENTATION + INDENT_STEP + 1 }
+                                    }),
+                                    line
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    } else {
+                        format!("{:?}", result)
+                    }
+                })
+                .green()
+                .markdown()
+            ),
             Err(e) => match e {
-                ErrMode::Backtrack(_) => describe_str(format!("=> {}", "Backtrack".yellow())),
-                ErrMode::Cut(e) => describe_str(format!(
+                ErrMode::Backtrack(_) => format!("=> {}", "Backtrack".yellow().markdown()),
+                ErrMode::Cut(e) => format!(
                     "=> Fatal parsing error: {}",
-                    e.to_string().replace("\n", "; ").red()
-                )),
+                    e.to_string().replace("\n", "; ").red().markdown()
+                ),
                 ErrMode::Incomplete(_) => unimplemented!(),
             },
-        }
+        }));
 
         result
     }

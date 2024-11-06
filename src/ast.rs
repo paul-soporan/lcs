@@ -1,30 +1,78 @@
 use std::{
-    collections::BTreeSet,
+    cmp::Ordering,
     fmt::{Debug, Display},
     vec,
 };
 
-use colored::Colorize;
+use colored::{Color, Colorize};
+use indexmap::{IndexMap, IndexSet};
+use termtree::Tree;
 
-use crate::evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue};
+use crate::{
+    evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
+    markdown::Markdown,
+    parser::parse_proposition,
+};
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct PropositionalVariable(pub String);
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum UnaryOperation {
     Negation,
 }
 
-#[derive(Debug)]
+impl Display for UnaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                UnaryOperation::Negation => "¬",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum BinaryOperation {
-    Conjunction,
-    Disjunction,
     Implication,
     Equivalence,
 }
 
-#[derive(Debug)]
+impl Display for BinaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BinaryOperation::Implication => "⇒",
+                BinaryOperation::Equivalence => "⇔",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+pub enum NaryOperation {
+    Conjunction,
+    Disjunction,
+}
+
+impl Display for NaryOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                NaryOperation::Conjunction => "∧",
+                NaryOperation::Disjunction => "∨",
+            }
+        )
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum CompoundProposition {
     UnaryOperation {
         operation: UnaryOperation,
@@ -35,10 +83,16 @@ pub enum CompoundProposition {
         left: Proposition,
         right: Proposition,
     },
+    NaryOperation {
+        operation: NaryOperation,
+        propositions: Vec<Proposition>,
+    },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub enum Proposition {
+    Tautology,
+    Contradiction,
     Atomic(PropositionalVariable),
     Compound(Box<CompoundProposition>),
 }
@@ -61,8 +115,8 @@ impl From<CompoundProposition> for Proposition {
     }
 }
 
-#[derive(Debug)]
-pub struct VariableSet(pub BTreeSet<PropositionalVariable>);
+#[derive(Debug, Clone)]
+pub struct VariableSet(pub IndexSet<PropositionalVariable>);
 
 impl Display for VariableSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,6 +132,41 @@ impl Display for VariableSet {
 }
 
 impl Proposition {
+    pub fn get_tree(&self) -> Tree<String> {
+        match self {
+            Proposition::Tautology => Tree::new("⊤".to_string()),
+            Proposition::Contradiction => Tree::new("⊥".to_string()),
+            Proposition::Atomic(p) => Tree::new(p.to_string()),
+            Proposition::Compound(p) => {
+                let p = p.as_ref();
+
+                match p {
+                    CompoundProposition::UnaryOperation {
+                        operation,
+                        proposition,
+                    } => Tree::new(operation.to_string()).with_leaves(vec![proposition.get_tree()]),
+                    CompoundProposition::BinaryOperation {
+                        operation,
+                        left,
+                        right,
+                    } => Tree::new(operation.to_string())
+                        .with_leaves(vec![left.get_tree(), right.get_tree()]),
+                    CompoundProposition::NaryOperation {
+                        operation,
+                        propositions,
+                    } => {
+                        let leaves = propositions
+                            .iter()
+                            .map(|p| p.get_tree())
+                            .collect::<Vec<_>>();
+
+                        Tree::new(operation.to_string()).with_leaves(leaves)
+                    }
+                }
+            }
+        }
+    }
+
     pub fn get_variables(&self) -> ExplainedValue<VariableSet> {
         let mut steps = vec![format!(
             "Collecting variables in {}",
@@ -85,8 +174,12 @@ impl Proposition {
         )];
 
         match self {
+            Proposition::Tautology | Proposition::Contradiction => ExplainedValue {
+                value: VariableSet(IndexSet::new()),
+                steps,
+            },
             Proposition::Atomic(p) => {
-                let mut variables = VariableSet(BTreeSet::new());
+                let mut variables = VariableSet(IndexSet::new());
                 variables.0.insert(p.clone());
 
                 steps.push(format!("=> {}", variables.to_string().green()));
@@ -133,20 +226,58 @@ impl Proposition {
                             steps,
                         }
                     }
+                    CompoundProposition::NaryOperation { propositions, .. } => {
+                        let variables = propositions
+                            .iter()
+                            .map(|p| p.get_variables().value.0)
+                            .fold(IndexSet::new(), |mut acc, set| {
+                                acc.extend(set);
+                                acc
+                            });
+
+                        ExplainedValue {
+                            value: VariableSet(variables),
+                            steps,
+                        }
+                    }
                 }
             }
         }
     }
 
-    // pub fn is_valid(&self) -> bool {
-    //     let variables = self.get_variables();
-    //     Interpretation::generate_all(variables).all(|i| self.evaluate(&i))
-    // }
+    pub fn get_subformulas(&self) -> IndexSet<&Self> {
+        let mut subformulas = match self {
+            Proposition::Compound(p) => {
+                let p = p.as_ref();
 
-    // pub fn is_satisfiable(&self) -> bool {
-    //     let variables = self.get_variables();
-    //     Interpretation::generate_all(variables).any(|i| self.evaluate(&i))
-    // }
+                match p {
+                    CompoundProposition::UnaryOperation { proposition, .. } => {
+                        proposition.get_subformulas()
+                    }
+                    CompoundProposition::BinaryOperation { left, right, .. } => {
+                        let mut subformulas = left.get_subformulas();
+                        subformulas.extend(right.get_subformulas());
+
+                        subformulas
+                    }
+                    CompoundProposition::NaryOperation { propositions, .. } => {
+                        let mut subformulas = IndexSet::new();
+
+                        for proposition in propositions {
+                            subformulas.extend(proposition.get_subformulas());
+                        }
+
+                        subformulas
+                    }
+                }
+            }
+            _ => IndexSet::new(),
+        };
+
+        subformulas.insert(self);
+
+        subformulas
+    }
 
     pub fn get_attributes(&self) -> ExplainedValue<PropositionAttributes> {
         let ExplainedValue {
@@ -220,10 +351,31 @@ impl Display for CompoundProposition {
                     right,
                 } => {
                     match operation {
-                        BinaryOperation::Conjunction => format!("({} ∧ {})", left, right),
-                        BinaryOperation::Disjunction => format!("({} ∨ {})", left, right),
                         BinaryOperation::Implication => format!("({} ⇒ {})", left, right),
                         BinaryOperation::Equivalence => format!("({} ⇔ {})", left, right),
+                    }
+                }
+                CompoundProposition::NaryOperation {
+                    operation,
+                    propositions,
+                } => {
+                    match operation {
+                        NaryOperation::Conjunction => {
+                            let propositions = propositions
+                                .iter()
+                                .map(|p| p.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" ∧ ");
+                            format!("({})", propositions)
+                        }
+                        NaryOperation::Disjunction => {
+                            let propositions = propositions
+                                .iter()
+                                .map(|p| p.to_string())
+                                .collect::<Vec<_>>()
+                                .join(" ∨ ");
+                            format!("({})", propositions)
+                        }
                     }
                 }
             }
@@ -237,9 +389,168 @@ impl Display for Proposition {
             f,
             "{}",
             match self {
+                Proposition::Tautology => "⊤".to_string(),
+                Proposition::Contradiction => "⊥".to_string(),
                 Proposition::Atomic(p) => p.to_string(),
                 Proposition::Compound(p) => p.to_string(),
             }
         )
+    }
+}
+
+#[derive(Debug)]
+pub struct TruthTable {
+    pub columns: IndexMap<Proposition, Vec<TruthValue>>,
+    pub highlighted_columns: IndexSet<Proposition>,
+    pub highlighted_rows: IndexSet<usize>,
+}
+
+impl TruthTable {
+    pub fn new(propositions: &[&Proposition]) -> Self {
+        let mut truth_table = TruthTable {
+            columns: IndexMap::new(),
+            highlighted_columns: IndexSet::new(),
+            highlighted_rows: IndexSet::new(),
+        };
+
+        let mut variables = VariableSet(IndexSet::new());
+        let mut subformulas = IndexSet::new();
+
+        for p in propositions {
+            variables.0.extend(p.get_variables().value.0);
+            subformulas.extend(p.get_subformulas());
+        }
+
+        subformulas.sort_by(|a, b| match (a, b) {
+            (Proposition::Atomic(_), Proposition::Compound(_)) => Ordering::Less,
+            (Proposition::Compound(_), Proposition::Atomic(_)) => Ordering::Greater,
+            _ => Ordering::Equal,
+        });
+
+        let interpretations = Interpretation::generate_all(variables);
+
+        for interpretation in interpretations {
+            for p in &subformulas {
+                let ExplainedValue { value, .. } = p.evaluate(&interpretation);
+
+                truth_table
+                    .columns
+                    .entry((*p).clone())
+                    .or_insert(vec![])
+                    .push(value);
+            }
+        }
+
+        truth_table
+    }
+
+    pub fn get_attributes(&self, proposition: &Proposition) -> PropositionAttributes {
+        let mut valid = true;
+        let mut satisfiable = false;
+
+        for i in self.columns[proposition].iter() {
+            valid &= i.0;
+            satisfiable |= i.0;
+        }
+
+        PropositionAttributes { valid, satisfiable }
+    }
+}
+
+impl Display for TruthTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let subformulas = self.columns.keys().collect::<Vec<_>>();
+
+        for p in &subformulas {
+            write!(f, "|{}", p.to_string().blue().markdown())?;
+        }
+        writeln!(f, "|")?;
+
+        for _ in 0..subformulas.len() {
+            write!(f, "|:-:")?;
+        }
+        writeln!(f, "|")?;
+
+        let row_size = self.columns.values().next().unwrap().len();
+
+        for i in 0..row_size {
+            for &p in &subformulas {
+                write!(f, "|{}", {
+                    format!("{}", self.columns[p][i])
+                        .color({
+                            if self.highlighted_columns.contains(p)
+                                || self.highlighted_rows.contains(&i)
+                            {
+                                Color::Red
+                            } else {
+                                Color::Black
+                            }
+                        })
+                        .markdown()
+                })?;
+            }
+            writeln!(f, "|")?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct LogicalEquivalence {
+    pub left: Proposition,
+    pub right: Proposition,
+}
+
+impl LogicalEquivalence {
+    pub fn check(&self) -> ExplainedValue<bool> {
+        let mut truth_table = TruthTable::new(&[&self.left, &self.right]);
+
+        truth_table.highlighted_columns.insert(self.left.clone());
+        truth_table.highlighted_columns.insert(self.right.clone());
+
+        ExplainedValue {
+            value: truth_table.columns[&self.left] == truth_table.columns[&self.right],
+            steps: vec![format!("{truth_table}")],
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct LogicalConsequence {
+    pub premises: Vec<Proposition>,
+    pub conclusion: Proposition,
+}
+
+impl LogicalConsequence {
+    pub fn check(&self) -> ExplainedValue<bool> {
+        let mut truth_table = TruthTable::new(
+            &[
+                self.premises.iter().collect::<Vec<_>>().as_slice(),
+                &[&self.conclusion],
+            ]
+            .concat(),
+        );
+
+        let mut value = true;
+
+        'outer: for i in 0..truth_table.columns[&self.premises[0]].len() {
+            for premise in &self.premises {
+                if !truth_table.columns[premise][i].0 {
+                    continue 'outer;
+                }
+            }
+
+            truth_table.highlighted_rows.insert(i);
+
+            if !truth_table.columns[&self.conclusion][i].0 {
+                value &= false;
+            }
+        }
+
+        ExplainedValue {
+            value,
+            steps: vec![format!("{truth_table}")],
+        }
     }
 }

@@ -3,8 +3,8 @@ use std::{collections::HashMap, fmt::Display};
 use colored::Colorize;
 
 use crate::ast::{
-    BinaryOperation, CompoundProposition, Proposition, PropositionalVariable, UnaryOperation,
-    VariableSet,
+    BinaryOperation, CompoundProposition, NaryOperation, Proposition, PropositionalVariable,
+    UnaryOperation, VariableSet,
 };
 
 #[derive(Debug)]
@@ -50,7 +50,7 @@ impl Display for Interpretation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TruthValue(pub bool);
 
 impl Display for TruthValue {
@@ -120,15 +120,11 @@ impl Evaluate for CompoundProposition {
                 } = right.evaluate(interpretation);
 
                 let value = match operation {
-                    BinaryOperation::Conjunction => l && r,
-                    BinaryOperation::Disjunction => l || r,
                     BinaryOperation::Implication => !l || r,
                     BinaryOperation::Equivalence => l == r,
                 };
 
                 let operation = match operation {
-                    BinaryOperation::Conjunction => "∧",
-                    BinaryOperation::Disjunction => "∨",
                     BinaryOperation::Implication => "⇒",
                     BinaryOperation::Equivalence => "⇔",
                 };
@@ -165,6 +161,27 @@ impl Evaluate for CompoundProposition {
                     steps,
                 }
             }
+            CompoundProposition::NaryOperation {
+                operation,
+                propositions,
+            } => match operation {
+                NaryOperation::Conjunction => ExplainedValue {
+                    value: TruthValue(
+                        propositions
+                            .iter()
+                            .all(|p| p.evaluate(interpretation).value.0),
+                    ),
+                    steps: vec![],
+                },
+                NaryOperation::Disjunction => ExplainedValue {
+                    value: TruthValue(
+                        propositions
+                            .iter()
+                            .any(|p| p.evaluate(interpretation).value.0),
+                    ),
+                    steps: vec![],
+                },
+            },
         }
     }
 }
@@ -172,6 +189,14 @@ impl Evaluate for CompoundProposition {
 impl Evaluate for Proposition {
     fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
         let Evaluation { value, mut steps } = match self {
+            Proposition::Tautology => Evaluation {
+                value: TruthValue(true),
+                steps: vec![],
+            },
+            Proposition::Contradiction => Evaluation {
+                value: TruthValue(false),
+                steps: vec![],
+            },
             Proposition::Atomic(p) => p.evaluate(interpretation),
             Proposition::Compound(p) => p.evaluate(interpretation),
         };
