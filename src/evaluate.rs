@@ -1,6 +1,7 @@
-use std::{collections::HashMap, fmt::Display};
+use std::fmt::Display;
 
 use colored::Colorize;
+use indexmap::IndexMap;
 
 use crate::ast::{
     BinaryOperation, CompoundProposition, NaryOperation, Proposition, PropositionalVariable,
@@ -8,7 +9,7 @@ use crate::ast::{
 };
 
 #[derive(Debug)]
-pub struct Interpretation(pub HashMap<PropositionalVariable, TruthValue>);
+pub struct Interpretation(pub IndexMap<PropositionalVariable, TruthValue>);
 
 impl Interpretation {
     pub fn generate_all<'a>(variables: VariableSet) -> impl Iterator<Item = Interpretation> + 'a {
@@ -19,7 +20,7 @@ impl Interpretation {
             let bit_string = format!("{:0n$b}", i);
             let mapping = bit_string.chars().map(|c| c == '1').collect::<Vec<bool>>();
 
-            let mut interpretation = Interpretation(HashMap::new());
+            let mut interpretation = Interpretation(IndexMap::new());
             for (variable, value) in variables.0.iter().zip(mapping) {
                 interpretation.0.insert(variable.clone(), TruthValue(value));
             }
@@ -35,7 +36,7 @@ impl Display for Interpretation {
 
         let variable_list = variables
             .iter()
-            .map(|variable| {
+            .map(|&variable| {
                 let prefix = if self.0.get(variable).unwrap().0 {
                     ""
                 } else {

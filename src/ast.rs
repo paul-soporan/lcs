@@ -1,7 +1,7 @@
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
-    vec,
+    usize, vec,
 };
 
 use colored::{Color, Colorize};
@@ -11,7 +11,6 @@ use termtree::Tree;
 use crate::{
     evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
     markdown::Markdown,
-    parser::parse_proposition,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
@@ -364,17 +363,23 @@ impl Display for CompoundProposition {
                             let propositions = propositions
                                 .iter()
                                 .map(|p| p.to_string())
-                                .collect::<Vec<_>>()
-                                .join(" ∧ ");
-                            format!("({})", propositions)
+                                .collect::<Vec<_>>();
+                            if propositions.len() == 1 {
+                                propositions[0].clone()
+                            } else {
+                                format!("({})", propositions.join(" ∧ "))
+                            }
                         }
                         NaryOperation::Disjunction => {
                             let propositions = propositions
                                 .iter()
                                 .map(|p| p.to_string())
-                                .collect::<Vec<_>>()
-                                .join(" ∨ ");
-                            format!("({})", propositions)
+                                .collect::<Vec<_>>();
+                            if propositions.len() == 1 {
+                                propositions[0].clone()
+                            } else {
+                                format!("({})", propositions.join(" ∨ "))
+                            }
                         }
                     }
                 }
@@ -403,6 +408,8 @@ pub struct TruthTable {
     pub columns: IndexMap<Proposition, Vec<TruthValue>>,
     pub highlighted_columns: IndexSet<Proposition>,
     pub highlighted_rows: IndexSet<usize>,
+    pub hidden_columns: IndexSet<Proposition>,
+    pub column_labels: IndexMap<Proposition, String>,
 }
 
 impl TruthTable {
@@ -411,6 +418,8 @@ impl TruthTable {
             columns: IndexMap::new(),
             highlighted_columns: IndexSet::new(),
             highlighted_rows: IndexSet::new(),
+            hidden_columns: IndexSet::new(),
+            column_labels: IndexMap::new(),
         };
 
         let mut variables = VariableSet(IndexSet::new());
@@ -459,10 +468,23 @@ impl TruthTable {
 
 impl Display for TruthTable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let subformulas = self.columns.keys().collect::<Vec<_>>();
+        let subformulas = self
+            .columns
+            .keys()
+            .filter(|&key| !self.hidden_columns.contains(key))
+            .collect::<Vec<_>>();
 
-        for p in &subformulas {
-            write!(f, "|{}", p.to_string().blue().markdown())?;
+        for &p in &subformulas {
+            write!(
+                f,
+                "|{}",
+                self.column_labels
+                    .get(p)
+                    .map(|label| label.to_owned())
+                    .unwrap_or_else(|| p.to_string())
+                    .blue()
+                    .markdown()
+            )?;
         }
         writeln!(f, "|")?;
 
@@ -552,5 +574,136 @@ impl LogicalConsequence {
             value,
             steps: vec![format!("{truth_table}")],
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Literal(pub PropositionalVariable, pub bool);
+
+impl From<Literal> for Proposition {
+    fn from(literal: Literal) -> Self {
+        let Literal(variable, value) = literal;
+        let proposition = variable.into();
+
+        if value {
+            proposition
+        } else {
+            CompoundProposition::UnaryOperation {
+                operation: UnaryOperation::Negation,
+                proposition,
+            }
+            .into()
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DisjunctiveNormalForm(pub Vec<Vec<Literal>>);
+
+impl From<DisjunctiveNormalForm> for Proposition {
+    fn from(value: DisjunctiveNormalForm) -> Self {
+        CompoundProposition::NaryOperation {
+            operation: NaryOperation::Disjunction,
+            propositions: value
+                .0
+                .into_iter()
+                .map(|clause| {
+                    CompoundProposition::NaryOperation {
+                        operation: NaryOperation::Conjunction,
+                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
+                    }
+                    .into()
+                })
+                .collect(),
+        }
+        .into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ConjunctiveNormalForm(pub Vec<Vec<Literal>>);
+
+impl From<ConjunctiveNormalForm> for Proposition {
+    fn from(value: ConjunctiveNormalForm) -> Self {
+        CompoundProposition::NaryOperation {
+            operation: NaryOperation::Conjunction,
+            propositions: value
+                .0
+                .into_iter()
+                .map(|clause| {
+                    CompoundProposition::NaryOperation {
+                        operation: NaryOperation::Disjunction,
+                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
+                    }
+                    .into()
+                })
+                .collect(),
+        }
+        .into()
+    }
+}
+
+#[derive(Debug)]
+pub struct TruthFunction<const N: usize>(pub fn(&[TruthValue; N]) -> TruthValue);
+
+impl<const N: usize> TruthFunction<N> {
+    // pub fn get_truth_table(&self) -> TruthTable {
+    //     let binding = (0..N)
+    //         .map(|i| PropositionalVariable(format!("A{i}")).into())
+    //         .collect::<Vec<_>>();
+
+    //     let variables = binding.iter().collect::<Vec<_>>();
+
+    //     TruthTable::new(variables.as_slice())
+    // }
+
+    pub fn get_disjunctive_normal_form(&self) -> DisjunctiveNormalForm {
+        let variables = (0..N)
+            .map(|i| PropositionalVariable((('A' as u8 + i as u8) as char).to_string()))
+            .collect::<IndexSet<_>>();
+
+        let interpretations = Interpretation::generate_all(VariableSet(variables));
+
+        DisjunctiveNormalForm(
+            interpretations
+                .filter_map(|interpretation| {
+                    let binding = interpretation.0.values().copied().collect::<Vec<_>>();
+                    let output = self.0(binding.as_slice().try_into().unwrap());
+
+                    output.0.then(|| {
+                        interpretation
+                            .0
+                            .into_iter()
+                            .map(|(variable, value)| Literal(variable, value.0))
+                            .collect()
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    pub fn get_conjunctive_normal_form(&self) -> ConjunctiveNormalForm {
+        let variables = (0..N)
+            .map(|i| PropositionalVariable((('A' as u8 + i as u8) as char).to_string()))
+            .collect::<IndexSet<_>>();
+
+        let interpretations = Interpretation::generate_all(VariableSet(variables));
+
+        ConjunctiveNormalForm(
+            interpretations
+                .filter_map(|interpretation| {
+                    let binding = interpretation.0.values().copied().collect::<Vec<_>>();
+                    let output = self.0(binding.as_slice().try_into().unwrap());
+
+                    (!output.0).then(|| {
+                        interpretation
+                            .0
+                            .into_iter()
+                            .map(|(variable, value)| Literal(variable, !value.0))
+                            .collect()
+                    })
+                })
+                .collect(),
+        )
     }
 }
