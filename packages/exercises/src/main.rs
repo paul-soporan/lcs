@@ -1,24 +1,11 @@
-#![feature(let_chains)]
-#![feature(anonymous_lifetime_in_impl_trait)]
-#![feature(box_patterns)]
-
-use ast::{Proposition, TruthFunction, TruthTable};
-use bcf::get_bcf;
-use circuit::{Analyze, Circuit, Component};
 use colored::Colorize;
-use evaluate::TruthValue;
 use indexmap::{indexmap, IndexMap};
 use itertools::Itertools;
-use markdown::Markdown;
-use simplify::simplify_proposition;
-
-mod ast;
-mod bcf;
-mod circuit;
-mod evaluate;
-mod markdown;
-mod parser;
-mod simplify;
+use lcs::ast::{Proposition, TruthFunction, TruthTable};
+use lcs::bcf::get_bcf;
+use lcs::circuit::{Analyze, Circuit, Component};
+use lcs::evaluate::TruthValue;
+use lcs::markdown::Markdown;
 
 fn get_letter(i: usize) -> char {
     (b'a' + i as u8) as char
