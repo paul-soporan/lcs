@@ -4,7 +4,10 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use ordermap::OrderMap;
 
-use crate::ast::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal, PropositionalVariable};
+use crate::{
+    ast::PropositionalVariable,
+    normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Assignment(pub OrderMap<PropositionalVariable, bool>);

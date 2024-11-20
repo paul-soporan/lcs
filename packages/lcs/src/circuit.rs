@@ -5,7 +5,7 @@ use std::{
 
 use indexmap::IndexSet;
 
-use crate::ast::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal};
+use crate::normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Bit(pub String);
@@ -21,6 +21,7 @@ pub enum Gate {
     Not(Component),
     And(Component, Component),
     Or(Component, Component),
+    Nand(Component, Component),
 }
 
 impl Display for Gate {
@@ -29,6 +30,7 @@ impl Display for Gate {
             Gate::Not(component) => write!(f, "¬{}", component),
             Gate::And(left, right) => write!(f, "({} ∧ {})", left, right),
             Gate::Or(left, right) => write!(f, "({} ∨ {})", left, right),
+            Gate::Nand(left, right) => write!(f, "({} | {})", left, right),
         }
     }
 }
@@ -60,11 +62,63 @@ impl From<Gate> for Component {
     }
 }
 
+pub fn into_nand_only_component(component: impl Into<Component>) -> Component {
+    match component.into() {
+        Component::Gate(box gate) => match gate {
+            Gate::Or(left, right) => Gate::Nand(
+                into_nand_only_component(Gate::Not(left)),
+                into_nand_only_component(Gate::Not(right)),
+            )
+            .into(),
+            Gate::And(left, right) => {
+                into_nand_only_component(Gate::Not(Gate::Nand(left, right).into()))
+            }
+            Gate::Not(component) => match component {
+                Component::Input(bit) => Gate::Nand(bit.clone().into(), bit.into()).into(),
+                Component::Gate(box gate) => match gate {
+                    Gate::Not(component) => into_nand_only_component(component),
+                    Gate::And(left, right) => Gate::Nand(
+                        into_nand_only_component(left),
+                        into_nand_only_component(right),
+                    )
+                    .into(),
+                    Gate::Or(left, right) => into_nand_only_component(Gate::And(
+                        Gate::Not(left).into(),
+                        Gate::Not(right).into(),
+                    )),
+                    Gate::Nand(left, right) => {
+                        let left = into_nand_only_component(left);
+                        let right = into_nand_only_component(right);
+
+                        let gate = Gate::Nand(left, right);
+
+                        Gate::Nand(gate.clone().into(), gate.into()).into()
+                    }
+                },
+            },
+            _ => unimplemented!(),
+        },
+        component => component,
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct CircuitAttributes<'a> {
     pub depth: usize,
     pub inputs: IndexSet<&'a Bit>,
     pub gates: IndexSet<&'a Gate>,
+}
+
+impl CircuitAttributes<'_> {
+    pub fn transistor_count(&self) -> usize {
+        self.gates.iter().fold(0, |acc, gate| {
+            acc + match gate {
+                Gate::Not(_) => 1,
+                Gate::Nand(_, _) => 2,
+                Gate::And(_, _) | Gate::Or(_, _) => 3,
+            }
+        })
+    }
 }
 
 impl AddAssign for CircuitAttributes<'_> {
@@ -91,6 +145,18 @@ pub trait Analyze {
 #[derive(Debug, Clone, Default)]
 pub struct Circuit {
     pub components: Vec<Component>,
+}
+
+impl Circuit {
+    pub fn into_nand_only(self) -> Self {
+        Self {
+            components: self
+                .components
+                .into_iter()
+                .map(into_nand_only_component)
+                .collect(),
+        }
+    }
 }
 
 impl Analyze for Circuit {
@@ -123,6 +189,10 @@ impl Analyze for Gate {
                 attributes += component.get_attributes();
             }
             Gate::And(left, right) | Gate::Or(left, right) => {
+                attributes += left.get_attributes();
+                attributes += right.get_attributes();
+            }
+            Gate::Nand(left, right) => {
                 attributes += left.get_attributes();
                 attributes += right.get_attributes();
             }

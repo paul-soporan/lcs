@@ -2,7 +2,7 @@ use std::{any::Any, fmt::Debug};
 
 use colored::Colorize;
 use winnow::{
-    ascii::space0,
+    ascii::{digit0, space0},
     combinator::{
         alt, cut_err, delimited, eof, preceded, separated, separated_foldr1, separated_pair,
         terminated,
@@ -205,6 +205,7 @@ fn negation(input: &mut Input) -> PResult<Proposition> {
     .parse_next(input)
 }
 
+// TODO: Disallow parenthesized atomic propositions.
 fn parenthesized_expression(input: &mut Input) -> PResult<Proposition> {
     describe(
         delimited(
@@ -227,10 +228,10 @@ fn contradiction(input: &mut Input) -> PResult<Proposition> {
     describe('⊥'.map(|_| Proposition::Contradiction), "contradiction").parse_next(input)
 }
 
-// TODO: Support indices.
 fn propositional_variable(input: &mut Input) -> PResult<Proposition> {
     describe(
-        one_of('A'..='Z').map(|name: char| PropositionalVariable(name.to_string()).into()),
+        (one_of('A'..='Z'), digit0)
+            .map(|(letter, index)| PropositionalVariable(format!("{letter}{index}")).into()),
         "propositional variable",
     )
     .parse_next(input)

@@ -1,6 +1,7 @@
 use std::{
     cmp::Ordering,
     fmt::{Debug, Display},
+    hash::Hash,
     usize, vec,
 };
 
@@ -11,12 +12,13 @@ use termtree::Tree;
 use crate::{
     evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
     markdown::Markdown,
+    normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct PropositionalVariable(pub String);
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnaryOperation {
     Negation,
 }
@@ -33,7 +35,7 @@ impl Display for UnaryOperation {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BinaryOperation {
     Implication,
     Equivalence,
@@ -52,7 +54,7 @@ impl Display for BinaryOperation {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NaryOperation {
     Conjunction,
     Disjunction,
@@ -71,7 +73,7 @@ impl Display for NaryOperation {
     }
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord)]
 pub enum CompoundProposition {
     UnaryOperation {
         operation: UnaryOperation,
@@ -88,7 +90,83 @@ pub enum CompoundProposition {
     },
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+impl PartialEq for CompoundProposition {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                CompoundProposition::UnaryOperation {
+                    operation: operation1,
+                    proposition: proposition1,
+                },
+                CompoundProposition::UnaryOperation {
+                    operation: operation2,
+                    proposition: proposition2,
+                },
+            ) => operation1 == operation2 && proposition1 == proposition2,
+            (
+                CompoundProposition::BinaryOperation {
+                    operation: operation1,
+                    left: left1,
+                    right: right1,
+                },
+                CompoundProposition::BinaryOperation {
+                    operation: operation2,
+                    left: left2,
+                    right: right2,
+                },
+            ) => operation1 == operation2 && left1 == left2 && right1 == right2,
+            (
+                CompoundProposition::NaryOperation {
+                    operation: operation1,
+                    propositions: propositions1,
+                },
+                CompoundProposition::NaryOperation {
+                    operation: operation2,
+                    propositions: propositions2,
+                },
+            ) => {
+                operation1 == operation2
+                    && propositions1.len() == propositions2.len()
+                    && propositions1.iter().all(|p1| propositions2.contains(p1))
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for CompoundProposition {}
+
+impl Hash for CompoundProposition {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            CompoundProposition::UnaryOperation {
+                operation,
+                proposition,
+            } => {
+                operation.hash(state);
+                proposition.hash(state);
+            }
+            CompoundProposition::BinaryOperation {
+                operation,
+                left,
+                right,
+            } => {
+                operation.hash(state);
+                left.hash(state);
+                right.hash(state);
+            }
+            CompoundProposition::NaryOperation {
+                operation,
+                propositions,
+            } => {
+                operation.hash(state);
+                propositions.clone().sort().hash(state);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Proposition {
     Tautology,
     Contradiction,
@@ -364,10 +442,11 @@ impl Display for CompoundProposition {
                                 .iter()
                                 .map(|p| p.to_string())
                                 .collect::<Vec<_>>();
-                            if propositions.len() == 1 {
-                                propositions[0].clone()
-                            } else {
-                                format!("({})", propositions.join(" ∧ "))
+
+                            match propositions.len() {
+                                0 => '⊤'.to_string(),
+                                1 => propositions[0].clone(),
+                                _ => format!("({})", propositions.join(" ∧ ")),
                             }
                         }
                         NaryOperation::Disjunction => {
@@ -375,10 +454,11 @@ impl Display for CompoundProposition {
                                 .iter()
                                 .map(|p| p.to_string())
                                 .collect::<Vec<_>>();
-                            if propositions.len() == 1 {
-                                propositions[0].clone()
-                            } else {
-                                format!("({})", propositions.join(" ∨ "))
+
+                            match propositions.len() {
+                                0 => '⊥'.to_string(),
+                                1 => propositions[0].clone(),
+                                _ => format!("({})", propositions.join(" ∨ ")),
                             }
                         }
                     }
@@ -394,8 +474,8 @@ impl Display for Proposition {
             f,
             "{}",
             match self {
-                Proposition::Tautology => "⊤".to_string(),
-                Proposition::Contradiction => "⊥".to_string(),
+                Proposition::Tautology => '⊤'.to_string(),
+                Proposition::Contradiction => '⊥'.to_string(),
                 Proposition::Atomic(p) => p.to_string(),
                 Proposition::Compound(p) => p.to_string(),
             }
@@ -574,72 +654,6 @@ impl LogicalConsequence {
             value,
             steps: vec![format!("{truth_table}")],
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Literal(pub PropositionalVariable, pub bool);
-
-impl From<Literal> for Proposition {
-    fn from(literal: Literal) -> Self {
-        let Literal(variable, value) = literal;
-        let proposition = variable.into();
-
-        if value {
-            proposition
-        } else {
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition,
-            }
-            .into()
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct DisjunctiveNormalForm(pub Vec<Vec<Literal>>);
-
-impl From<DisjunctiveNormalForm> for Proposition {
-    fn from(value: DisjunctiveNormalForm) -> Self {
-        CompoundProposition::NaryOperation {
-            operation: NaryOperation::Disjunction,
-            propositions: value
-                .0
-                .into_iter()
-                .map(|clause| {
-                    CompoundProposition::NaryOperation {
-                        operation: NaryOperation::Conjunction,
-                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
-                    }
-                    .into()
-                })
-                .collect(),
-        }
-        .into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ConjunctiveNormalForm(pub Vec<Vec<Literal>>);
-
-impl From<ConjunctiveNormalForm> for Proposition {
-    fn from(value: ConjunctiveNormalForm) -> Self {
-        CompoundProposition::NaryOperation {
-            operation: NaryOperation::Conjunction,
-            propositions: value
-                .0
-                .into_iter()
-                .map(|clause| {
-                    CompoundProposition::NaryOperation {
-                        operation: NaryOperation::Disjunction,
-                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
-                    }
-                    .into()
-                })
-                .collect(),
-        }
-        .into()
     }
 }
 
