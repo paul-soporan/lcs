@@ -93,6 +93,7 @@ dependencies = [
  "itertools",
  "maplit",
  "ordermap",
+ "replace_with",
  "termtree",
  "winnow",
 ]
@@ -135,6 +136,12 @@ checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
 dependencies = [
  "proc-macro2",
 ]
+
+[[package]]
+name = "replace_with"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a8614ee435691de62bcffcf4a66d91b3594bf1428a5722e79103249a095690"
 
 [[package]]
 name = "syn"

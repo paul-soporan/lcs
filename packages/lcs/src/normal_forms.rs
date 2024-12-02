@@ -15,6 +15,12 @@ use crate::{
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Literal(pub PropositionalVariable, pub bool);
 
+impl Literal {
+    pub fn complement(&self) -> Self {
+        Literal(self.0.clone(), !self.1)
+    }
+}
+
 impl From<Literal> for Proposition {
     fn from(Literal(variable, value): Literal) -> Self {
         let proposition = variable.into();

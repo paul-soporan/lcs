@@ -9,4 +9,5 @@ pub mod markdown;
 pub mod normal_forms;
 pub mod parser;
 pub mod reduce;
+pub mod resolver;
 pub mod simplify;

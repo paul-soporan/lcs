@@ -618,7 +618,7 @@ impl LogicalEquivalence {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LogicalConsequence {
     pub premises: Vec<Proposition>,
     pub conclusion: Proposition,
@@ -654,6 +654,21 @@ impl LogicalConsequence {
             value,
             steps: vec![format!("{truth_table}")],
         }
+    }
+}
+
+impl Display for LogicalConsequence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} ⊨ {}",
+            self.premises
+                .iter()
+                .map(|p| p.to_string())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.conclusion.to_string()
+        )
     }
 }
 

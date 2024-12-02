@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Debug};
+use std::{any::Any, collections::BTreeSet, fmt::Debug};
 
 use colored::Colorize;
 use winnow::{
@@ -19,6 +19,7 @@ use crate::{
     },
     evaluate::ExplainedValue,
     markdown::Markdown,
+    normal_forms::Literal,
 };
 
 #[derive(Debug)]
@@ -54,6 +55,42 @@ fn make_parser<'a, T>(
         value: result.map_err(|e| e.to_string()),
         steps: input.state.steps,
     }
+}
+
+pub fn parse_clause_set(
+    input: &str,
+) -> ExplainedValue<Result<BTreeSet<BTreeSet<Literal>>, String>> {
+    make_parser(clause_set, input)
+}
+
+pub fn parse_clause(input: &str) -> ExplainedValue<Result<BTreeSet<Literal>, String>> {
+    make_parser(clause, input)
+}
+
+fn clause_set(input: &mut Input) -> PResult<BTreeSet<BTreeSet<Literal>>> {
+    delimited('{', separated(0.., clause, spaced(',')), '}').parse_next(input)
+}
+
+fn clause(input: &mut Input) -> PResult<BTreeSet<Literal>> {
+    delimited('{', separated(0.., literal, spaced(',')), '}').parse_next(input)
+}
+
+fn literal(input: &mut Input) -> PResult<Literal> {
+    alt((
+        describe(
+            preceded(
+                '¬',
+                describe(propositional_variable, "propositional variable"),
+            )
+            .map(|v| Literal(v, false)),
+            "negated literal",
+        ),
+        describe(
+            propositional_variable.map(|v| Literal(v, true)),
+            "positive literal",
+        ),
+    ))
+    .parse_next(input)
 }
 
 pub fn parse_logical_consequence(
@@ -176,7 +213,7 @@ fn conjunction_or_disjunction(input: &mut Input) -> PResult<Proposition> {
 fn base_expression(input: &mut Input) -> PResult<Proposition> {
     describe(
         alt((
-            propositional_variable,
+            propositional_variable.map(|v| v.into()),
             parenthesized_expression,
             negation,
             tautology,
@@ -228,10 +265,10 @@ fn contradiction(input: &mut Input) -> PResult<Proposition> {
     describe('⊥'.map(|_| Proposition::Contradiction), "contradiction").parse_next(input)
 }
 
-fn propositional_variable(input: &mut Input) -> PResult<Proposition> {
+fn propositional_variable(input: &mut Input) -> PResult<PropositionalVariable> {
     describe(
         (one_of('A'..='Z'), digit0)
-            .map(|(letter, index)| PropositionalVariable(format!("{letter}{index}")).into()),
+            .map(|(letter, index)| PropositionalVariable(format!("{letter}{index}"))),
         "propositional variable",
     )
     .parse_next(input)

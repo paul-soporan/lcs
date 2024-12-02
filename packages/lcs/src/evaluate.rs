@@ -8,7 +8,7 @@ use crate::ast::{
     UnaryOperation, VariableSet,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Interpretation(pub IndexMap<PropositionalVariable, TruthValue>);
 
 impl Interpretation {

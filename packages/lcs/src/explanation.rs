@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use enum_as_inner::EnumAsInner;
-use ordermap::{set::MutableValues, OrderSet};
 use termtree::Tree;
 
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, EnumAsInner)]
@@ -13,29 +12,32 @@ enum ExplanationComponent {
 #[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Explanation {
     description: String,
-    components: OrderSet<ExplanationComponent>,
+    components: Vec<ExplanationComponent>,
 }
 
 impl Explanation {
     pub fn new(description: impl Into<String>) -> Self {
         Self {
             description: description.into(),
-            components: OrderSet::new(),
+            components: Vec::new(),
         }
     }
 
     pub fn step(&mut self, step: impl Into<String>) {
-        self.components
-            .insert(ExplanationComponent::Step(step.into()));
+        let step = ExplanationComponent::Step(step.into());
+
+        if self.components.last() != Some(&step) {
+            self.components.push(step);
+        }
     }
 
     pub fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self {
         let explanation = Explanation::new(description);
         self.components
-            .insert(ExplanationComponent::Explanation(explanation));
+            .push(ExplanationComponent::Explanation(explanation));
 
         self.components
-            .get_index_mut2(self.components.len() - 1)
+            .last_mut()
             .unwrap()
             .as_explanation_mut()
             .unwrap()
