@@ -1,19 +1,21 @@
 use std::collections::BTreeSet;
 
 use colored::Colorize;
+use indexmap::{indexmap, indexset};
 use lcs::ast::{LogicalConsequence, Proposition, PropositionalVariable};
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
 use lcs::normal_forms::ConjunctiveNormalForm;
 use lcs::parser::{parse_clause, parse_clause_set, parse_proposition};
+use lcs::predicate_logic::parser::{parse_expression, Expression, Signature};
 use lcs::resolver::Resolver;
 
 fn get_letter(i: usize) -> char {
     (b'a' + i as u8) as char
 }
 
-fn exercise_1() {
-    println!("# Exercise 1");
+fn subexercise_1() {
+    println!("## Exercise 1");
 
     let parts = ["A ∧ W ⇒ P", "¬A ⇒ I", "¬W ⇒ M", "¬P", "E ⇒ ¬(I ∨ M)"];
 
@@ -43,15 +45,21 @@ fn exercise_1() {
                 consequence.clone(),
                 &mut Explanation::default(),
             );
+            let mut dpll_resolver = Resolver::check_logical_consequence(
+                consequence.clone(),
+                &mut Explanation::default(),
+            );
 
             let consequence_resolution =
                 resolution_resolver.resolution(explanation.subexplanation("Resolution"));
             let consequence_dp = dp_resolver.dp(explanation.subexplanation("DP"));
+            let consequence_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
 
             let consequence_truth_table = consequence.check().value;
 
             if (consequence_resolution != consequence_dp)
                 || (consequence_dp != consequence_truth_table)
+                || (consequence_dpll != consequence_truth_table)
             {
                 panic!("Different logical consequence results");
             }
@@ -69,8 +77,8 @@ fn exercise_1() {
     println!("{}", explanation);
 }
 
-fn exercise_2() {
-    println!("# Exercise 2");
+fn subexercise_2() {
+    println!("## Exercise 2");
 
     let test_cases = [
         "{{A, ¬B, C}, {B, C}, {¬A, C}, {B, ¬C}, {¬B}}",
@@ -78,7 +86,7 @@ fn exercise_2() {
     ];
 
     for (i, input) in test_cases.iter().enumerate() {
-        println!("## {})", get_letter(i));
+        println!("### {})", get_letter(i));
 
         println!(
             "- **Clause set:** {}",
@@ -101,16 +109,20 @@ fn exercise_2() {
                 let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
                 let mut dp_resolver =
                     Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
+                let mut dpll_resolver =
+                    Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
 
                 let satisfiable_resolution =
                     resolution_resolver.resolution(explanation.subexplanation("Resolution"));
                 let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
+                let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
 
                 let satisfiable_truth_table =
                     Proposition::from(cnf).get_attributes().value.satisfiable;
 
                 if (satisfiable_resolution != satisfiable_dp)
                     || (satisfiable_dp != satisfiable_truth_table)
+                    || (satisfiable_dpll != satisfiable_truth_table)
                 {
                     panic!("Different satisfiability results");
                 }
@@ -124,7 +136,8 @@ fn exercise_2() {
                 );
 
                 if satisfiable_resolution {
-                    let interpretation = dp_resolver.build_satisfying_interpretation(explanation);
+                    let interpretation =
+                        dpll_resolver.build_satisfying_interpretation_dpll(explanation);
 
                     println!(
                         "- **Satisfying truth valuation:** {}",
@@ -138,8 +151,8 @@ fn exercise_2() {
     }
 }
 
-fn exercise_3() {
-    println!("# Exercise 3");
+fn subexercise_3() {
+    println!("## Exercise 3");
 
     let clauses = [
         "{P, Q, ¬R}",
@@ -169,15 +182,19 @@ fn exercise_3() {
             let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
             let mut dp_resolver =
                 Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
+            let mut dpll_resolver =
+                Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
 
             let satisfiable_resolution =
                 resolution_resolver.resolution(explanation.subexplanation("Resolution"));
             let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
+            let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
 
             let satisfiable_truth_table = Proposition::from(cnf).get_attributes().value.satisfiable;
 
             if (satisfiable_resolution != satisfiable_dp)
                 || (satisfiable_dp != satisfiable_truth_table)
+                || (satisfiable_dpll != satisfiable_truth_table)
             {
                 panic!("Different satisfiability results");
             }
@@ -191,7 +208,8 @@ fn exercise_3() {
             );
 
             if satisfiable_resolution {
-                let interpretation = dp_resolver.build_satisfying_interpretation(explanation);
+                let interpretation =
+                    dpll_resolver.build_satisfying_interpretation_dpll(explanation);
 
                 println!(
                     "- **Satisfying truth valuation:** {}",
@@ -204,8 +222,8 @@ fn exercise_3() {
     println!("{}", explanation);
 }
 
-fn exercise_4() {
-    println!("# Exercise 4");
+fn subexercise_4() {
+    println!("## Exercise 4");
 
     let formula = "((P1 ⇒ (P2 ∨ P3)) ∧ (¬P1 ⇒ (P3 ∨ P4)) ∧ (P3 ⇒ (¬P6)) ∧ (¬P3 ⇒ (P4 ⇒ P1)) ∧ (¬(P2 ∧ P5)) ∧ (P2 ⇒ P5)) ⇒ ¬(P3 ⇒ P6)";
 
@@ -221,17 +239,23 @@ fn exercise_4() {
             let mut resolution_resolver = Resolver::is_valid(proposition.clone(), explanation);
             let mut dp_resolver =
                 Resolver::is_valid(proposition.clone(), &mut Explanation::default());
+            let mut dpll_resolver =
+                Resolver::is_valid(proposition.clone(), &mut Explanation::default());
 
             let valid_resolution =
                 resolution_resolver.resolution(explanation.subexplanation("Resolution"));
             let valid_dp = dp_resolver.dp(explanation.subexplanation("DP"));
+            let valid_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
 
             let valid_truth_table = Proposition::from(proposition.clone())
                 .get_attributes()
                 .value
                 .valid;
 
-            if (valid_resolution != valid_dp) || (valid_dp != valid_truth_table) {
+            if (valid_resolution != valid_dp)
+                || (valid_dp != valid_truth_table)
+                || (valid_dpll != valid_truth_table)
+            {
                 panic!("Different validity results");
             }
 
@@ -248,9 +272,82 @@ fn exercise_4() {
     println!("{}", explanation);
 }
 
+fn exercise_1() {
+    println!("# Exercise 1");
+
+    subexercise_1();
+    subexercise_2();
+    subexercise_3();
+    subexercise_4();
+}
+
+fn exercise_3() {
+    println!("# Exercise 3");
+
+    let signature = Signature {
+        functions: indexmap! {
+            "f".to_owned() => 2,
+            "g".to_owned() => 1,
+            "h".to_owned() => 3,
+        },
+        predicates: indexmap! {
+            "P".to_owned() => 2,
+            "Q".to_owned() => 2,
+            "R".to_owned() => 3,
+        },
+        constants: indexset! {
+            "a".to_owned(),
+            "b".to_owned(),
+            "c".to_owned()
+        },
+    };
+
+    let test_cases = [
+        "c",
+        "h",
+        "(P ∧ Q)",
+        "P(f(x, a), g(h(c, a, g(y, z)))",
+        "f(g(f(a, h(b, g(x, y)))), Q(a, x))",
+        "∀x((P(x, y) ∨ (R(f(x, y), g(f(y, z)), a))) ⇒ (P(a, b) ⇔ ∃yP(x, y)))",
+        "(R(x, y, c) ∧ ∀aR(a, a, a))",
+        "(h(x, y, c) ∨ ∃xQ(x, x))",
+        "P(x, y) ⇔ ∃xR(x, y, z)",
+    ];
+
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+
+        println!("- **Input:** {}", input.magenta().markdown());
+
+        let expression = parse_expression(input, signature.clone(), &mut Explanation::default());
+        match expression {
+            Ok(expression) => {
+                println!("- **{}**", "Valid expression".green().markdown());
+                println!(
+                    "- **Expression type:** {}",
+                    match expression {
+                        Expression::Term(_) => "term".green().markdown(),
+                        Expression::Formula(_) => "formula".magenta().markdown(),
+                    }
+                );
+
+                println!("- **Abstract syntax tree:**\n<pre>{:#?}</pre>", expression);
+            }
+            Err(error) => {
+                println!("- **{}**", "Invalid expression".red().markdown());
+
+                let error = error.trim();
+                if !error.is_empty() {
+                    println!("- **Parsing Error:** {}", error.red().markdown());
+                } else {
+                    println!("- **Parsing Error**");
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     exercise_1();
-    exercise_2();
     exercise_3();
-    exercise_4();
 }

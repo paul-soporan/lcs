@@ -3,13 +3,13 @@ use std::fmt::Display;
 use enum_as_inner::EnumAsInner;
 use termtree::Tree;
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, EnumAsInner)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, EnumAsInner)]
 enum ExplanationComponent {
     Step(String),
     Explanation(Explanation),
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Explanation {
     description: String,
     components: Vec<ExplanationComponent>,

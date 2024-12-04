@@ -11,7 +11,7 @@ use replace_with::replace_with_or_abort;
 use crate::{
     ast::{CompoundProposition, LogicalConsequence, NaryOperation, Proposition, UnaryOperation},
     evaluate::{Interpretation, TruthValue},
-    explanation::{self, Explanation},
+    explanation::Explanation,
     markdown::Markdown,
     normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
 };
@@ -424,7 +424,19 @@ impl Resolver {
                     replace_with_or_abort(&mut self.clauses, |clauses| {
                         clauses
                             .into_iter()
-                            .filter(|clause| !clause.0.contains(&literal))
+                            .enumerate()
+                            .filter_map(|(i, clause)| {
+                                if clause.0.contains(&literal) {
+                                    explanation.step(format!(
+                                        "Removing clause {} because it contains {}",
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                        literal.to_string().green().markdown()
+                                    ));
+                                    None
+                                } else {
+                                    Some(clause)
+                                }
+                            })
                             .collect()
                     });
 
@@ -494,6 +506,119 @@ impl Resolver {
         result
     }
 
+    fn apply_split(&mut self, explanation: &mut Explanation) -> bool {
+        let literal = self.clauses[0].0.first().unwrap().clone();
+
+        explanation.with_subexplanation(
+            format!("Splitting on {}", literal.to_string().green().markdown()),
+            |explanation| {
+                let clauses = self.clauses.clone();
+                let literals = self.required_literals.clone();
+
+                let positive_literal_clause = Clause(BTreeSet::from([literal.clone()]));
+                let positive_literal_explanation = format!(
+                    "Branch with clause {}",
+                    positive_literal_clause.to_string().green().markdown()
+                );
+
+                self.clauses.insert(positive_literal_clause);
+                self.required_literals.insert(literal.clone());
+
+                let positive_literal_result =
+                    self.apply_dpll(explanation.subexplanation(positive_literal_explanation));
+                if positive_literal_result {
+                    explanation.step(format!(
+                        "Result: {}; no need to check the other branch",
+                        "satisfiable".green().markdown()
+                    ));
+                    return true;
+                }
+
+                let negative_literal_clause = Clause(BTreeSet::from([literal.complement()]));
+                let negative_literal_explanation = format!(
+                    "Branch with clause {}",
+                    negative_literal_clause.to_string().red().markdown()
+                );
+
+                self.clauses = clauses;
+                self.required_literals = literals;
+
+                self.clauses.insert(negative_literal_clause);
+                self.required_literals.insert(literal.complement());
+
+                let result =
+                    self.apply_dpll(explanation.subexplanation(negative_literal_explanation));
+
+                explanation.step(format!(
+                    "Result: {}",
+                    if result {
+                        "satisfiable".green().markdown()
+                    } else {
+                        "unsatisfiable".red().markdown()
+                    }
+                ));
+
+                result
+            },
+        )
+    }
+
+    fn apply_dpll(&mut self, explanation: &mut Explanation) -> bool {
+        let result =
+            explanation.with_subexplanation("Applying the DPLL algorithm", |explanation| loop {
+                let explanation = explanation.subexplanation("DPLL step");
+
+                explanation.with_subexplanation("Current clauses", |explanation| {
+                    for (i, clause) in self.clauses.iter().enumerate() {
+                        explanation.step(format!(
+                            "{} {}",
+                            format!("({})", i).to_string().magenta().markdown(),
+                            clause.to_string().blue().markdown()
+                        ));
+                    }
+                });
+
+                if self.clauses.is_empty() {
+                    explanation.step(format!(
+                        "No clauses left, therefore the formula is {}",
+                        "satisfiable".green().markdown()
+                    ));
+                    return true;
+                }
+
+                for clause in &self.clauses {
+                    if clause.0.is_empty() {
+                        explanation.step(format!(
+                            "Found an empty clause, therefore the formula is {}",
+                            "unsatisfiable".red().markdown()
+                        ));
+                        return false;
+                    }
+                }
+
+                if self.apply_one_literal_rule(explanation) {
+                    continue;
+                }
+
+                if self.apply_pure_literal_rule(explanation) {
+                    continue;
+                }
+
+                return self.apply_split(explanation);
+            });
+
+        explanation.step(format!(
+            "Result: {}",
+            if result {
+                "satisfiable".green().markdown()
+            } else {
+                "unsatisfiable".red().markdown()
+            },
+        ));
+
+        result
+    }
+
     pub fn resolution(&mut self, explanation: &mut Explanation) -> bool {
         let result = self.apply_resolution(explanation);
 
@@ -506,7 +631,16 @@ impl Resolver {
         (self.result_mapper)(result, explanation)
     }
 
-    pub fn build_satisfying_interpretation(&self, explanation: &mut Explanation) -> Interpretation {
+    pub fn dpll(&mut self, explanation: &mut Explanation) -> bool {
+        let result = self.apply_dpll(explanation);
+
+        (self.result_mapper)(result, explanation)
+    }
+
+    pub fn build_satisfying_interpretation_dp(
+        &self,
+        explanation: &mut Explanation,
+    ) -> Interpretation {
         let clauses = BTreeSet::from_iter(self.clauses.clone());
         let mut interpretation = Interpretation::default();
 
@@ -557,6 +691,33 @@ impl Resolver {
                         }
                     }
                 }
+            }
+
+            explanation.step(format!(
+                "Result: {}",
+                interpretation.to_string().green().markdown()
+            ));
+        });
+
+        interpretation
+    }
+
+    pub fn build_satisfying_interpretation_dpll(
+        &self,
+        explanation: &mut Explanation,
+    ) -> Interpretation {
+        let mut interpretation = Interpretation::default();
+
+        explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {
+            for literal in &self.required_literals {
+                interpretation
+                    .0
+                    .insert(literal.0.clone(), TruthValue(literal.1));
+
+                explanation.step(format!(
+                    "Adding {} to the truth valuation",
+                    literal.to_string().green().markdown(),
+                ));
             }
 
             explanation.step(format!(
