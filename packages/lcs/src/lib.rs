@@ -1,4 +1,6 @@
 #![feature(box_patterns)]
+#![feature(closure_lifetime_binder)]
+#![feature(map_try_insert)]
 
 pub mod ast;
 pub mod bcf;

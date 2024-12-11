@@ -1,353 +1,235 @@
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use colored::Colorize;
-use indexmap::{indexmap, indexset};
-use lcs::ast::{LogicalConsequence, Proposition, PropositionalVariable};
+use indexmap::indexmap;
+use itertools::Itertools;
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
-use lcs::normal_forms::ConjunctiveNormalForm;
-use lcs::parser::{parse_clause, parse_clause_set, parse_proposition};
-use lcs::predicate_logic::parser::{parse_expression, Expression, Signature};
-use lcs::resolver::Resolver;
+use lcs::predicate_logic::latex::get_interpolation_for_latex;
+use lcs::predicate_logic::parser::{
+    parse_expression, Associativity, Expression, FunctionSymbol, PredicateSymbol, Signature,
+};
 
 fn get_letter(i: usize) -> char {
     (b'a' + i as u8) as char
 }
 
-fn subexercise_1() {
-    println!("## Exercise 1");
+fn get_common_math_signature() -> Signature {
+    Signature {
+        functions: indexmap! {
+            "+".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
+            "-".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
 
-    let parts = ["A ∧ W ⇒ P", "¬A ⇒ I", "¬W ⇒ M", "¬P", "E ⇒ ¬(I ∨ M)"];
+            "*".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+            "/".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
 
-    let premises = parts.map(|part| parse_proposition(part).value.unwrap());
+            "^".to_owned() => FunctionSymbol { arities: vec![2], precedence: 3, associativity: Associativity::Right },
 
-    let consequence = LogicalConsequence {
-        premises: premises.to_vec(),
-        conclusion: PropositionalVariable("E".to_owned()).into(),
-    };
+            "√".to_owned() => FunctionSymbol { arities: vec![1], precedence: 4, associativity: Associativity::Left },
+        },
+        predicates: indexmap! {
+            "=".to_owned() => PredicateSymbol { arity: 2 },
+            "<".to_owned() => PredicateSymbol { arity: 2 },
+            "⩽".to_owned() => PredicateSymbol { arity: 2 },
+            ">".to_owned() => PredicateSymbol { arity: 2 },
+            "⩾".to_owned() => PredicateSymbol { arity: 2 },
 
-    println!(
-        "- **Logical consequence:** {}",
-        consequence.to_string().blue().markdown()
-    );
+            "∈".to_owned() => PredicateSymbol { arity: 2 },
 
-    let mut explanation = Explanation::default();
-
-    explanation.with_subexplanation(
-        format!(
-            "Checking logical consequence {}",
-            consequence.to_string().blue().markdown()
-        ),
-        |explanation| {
-            let mut resolution_resolver =
-                Resolver::check_logical_consequence(consequence.clone(), explanation);
-            let mut dp_resolver = Resolver::check_logical_consequence(
-                consequence.clone(),
-                &mut Explanation::default(),
-            );
-            let mut dpll_resolver = Resolver::check_logical_consequence(
-                consequence.clone(),
-                &mut Explanation::default(),
-            );
-
-            let consequence_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let consequence_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let consequence_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
-
-            let consequence_truth_table = consequence.check().value;
-
-            if (consequence_resolution != consequence_dp)
-                || (consequence_dp != consequence_truth_table)
-                || (consequence_dpll != consequence_truth_table)
-            {
-                panic!("Different logical consequence results");
+            "P".to_owned() => PredicateSymbol { arity: 2 },
+            "Q".to_owned() => PredicateSymbol { arity: 3 },
+            "R".to_owned() => PredicateSymbol { arity: 3 },
+        },
+        is_constant: Box::new(|name| {
+            if name == "ℕ" || name == "ℝ" {
+                return true;
             }
 
-            println!(
-                "- **Logical consequence is:** {}",
-                match consequence_resolution {
-                    true => "true".green().markdown(),
-                    false => "false".red().markdown(),
-                }
-            );
-        },
-    );
+            if name.chars().clone().all(|c| c.is_ascii_digit()) {
+                return true;
+            }
 
-    println!("{}", explanation);
-}
+            let mut chars = name.chars();
+            let first_char = chars.next().unwrap();
 
-fn subexercise_2() {
-    println!("## Exercise 2");
+            if first_char == '-' && chars.all(|c| c.is_ascii_digit()) {
+                return true;
+            }
 
-    let test_cases = [
-        "{{A, ¬B, C}, {B, C}, {¬A, C}, {B, ¬C}, {¬B}}",
-        "{{A, ¬B}, {A, C}, {¬B, C}, {¬A, B}, {B, ¬C}, {¬A, ¬C}}",
-    ];
-
-    for (i, input) in test_cases.iter().enumerate() {
-        println!("### {})", get_letter(i));
-
-        println!(
-            "- **Clause set:** {}",
-            input.to_string().magenta().markdown()
-        );
-
-        let clause_set = parse_clause_set(input).value.unwrap();
-        let cnf = ConjunctiveNormalForm(clause_set);
-
-        println!("- **Formula:** {}", cnf.to_string().blue().markdown());
-
-        let mut explanation = Explanation::default();
-
-        explanation.with_subexplanation(
-            format!(
-                "Checking satisfiability for {}",
-                cnf.to_string().blue().markdown()
-            ),
-            |explanation| {
-                let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
-                let mut dp_resolver =
-                    Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-                let mut dpll_resolver =
-                    Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-
-                let satisfiable_resolution =
-                    resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-                let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-                let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
-
-                let satisfiable_truth_table =
-                    Proposition::from(cnf).get_attributes().value.satisfiable;
-
-                if (satisfiable_resolution != satisfiable_dp)
-                    || (satisfiable_dp != satisfiable_truth_table)
-                    || (satisfiable_dpll != satisfiable_truth_table)
-                {
-                    panic!("Different satisfiability results");
-                }
-
-                println!(
-                    "- **Result:** {}",
-                    match satisfiable_resolution {
-                        true => "satisfiable".green().markdown(),
-                        false => "unsatisfiable".red().markdown(),
-                    }
-                );
-
-                if satisfiable_resolution {
-                    let interpretation =
-                        dpll_resolver.build_satisfying_interpretation_dpll(explanation);
-
-                    println!(
-                        "- **Satisfying truth valuation:** {}",
-                        interpretation.to_string().green().markdown()
-                    );
-                }
-            },
-        );
-
-        println!("{}", explanation);
+            false
+        }),
     }
-}
-
-fn subexercise_3() {
-    println!("## Exercise 3");
-
-    let clauses = [
-        "{P, Q, ¬R}",
-        "{¬P, R}",
-        "{P, ¬Q, S}",
-        "{¬P, ¬Q, ¬R}",
-        "{P, ¬S}",
-    ];
-
-    let clause_set = clauses
-        .iter()
-        .map(|clause| parse_clause(clause).value.unwrap())
-        .collect::<BTreeSet<_>>();
-
-    let cnf = ConjunctiveNormalForm(clause_set);
-
-    println!("- **Formula:** {}", cnf.to_string().blue().markdown());
-
-    let mut explanation = Explanation::default();
-
-    explanation.with_subexplanation(
-        format!(
-            "Checking satisfiability for {}",
-            cnf.to_string().blue().markdown()
-        ),
-        |explanation| {
-            let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
-            let mut dp_resolver =
-                Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-            let mut dpll_resolver =
-                Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-
-            let satisfiable_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
-
-            let satisfiable_truth_table = Proposition::from(cnf).get_attributes().value.satisfiable;
-
-            if (satisfiable_resolution != satisfiable_dp)
-                || (satisfiable_dp != satisfiable_truth_table)
-                || (satisfiable_dpll != satisfiable_truth_table)
-            {
-                panic!("Different satisfiability results");
-            }
-
-            println!(
-                "- **Result:** {}",
-                match satisfiable_resolution {
-                    true => "satisfiable".green().markdown(),
-                    false => "unsatisfiable".red().markdown(),
-                }
-            );
-
-            if satisfiable_resolution {
-                let interpretation =
-                    dpll_resolver.build_satisfying_interpretation_dpll(explanation);
-
-                println!(
-                    "- **Satisfying truth valuation:** {}",
-                    interpretation.to_string().green().markdown()
-                );
-            }
-        },
-    );
-
-    println!("{}", explanation);
-}
-
-fn subexercise_4() {
-    println!("## Exercise 4");
-
-    let formula = "((P1 ⇒ (P2 ∨ P3)) ∧ (¬P1 ⇒ (P3 ∨ P4)) ∧ (P3 ⇒ (¬P6)) ∧ (¬P3 ⇒ (P4 ⇒ P1)) ∧ (¬(P2 ∧ P5)) ∧ (P2 ⇒ P5)) ⇒ ¬(P3 ⇒ P6)";
-
-    println!("- **Formula:** {}", formula.magenta().markdown());
-
-    let proposition = parse_proposition(formula).value.unwrap();
-
-    let mut explanation = Explanation::default();
-
-    explanation.with_subexplanation(
-        format!("Checking validity for {}", formula.blue().markdown()),
-        |explanation| {
-            let mut resolution_resolver = Resolver::is_valid(proposition.clone(), explanation);
-            let mut dp_resolver =
-                Resolver::is_valid(proposition.clone(), &mut Explanation::default());
-            let mut dpll_resolver =
-                Resolver::is_valid(proposition.clone(), &mut Explanation::default());
-
-            let valid_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let valid_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let valid_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
-
-            let valid_truth_table = Proposition::from(proposition.clone())
-                .get_attributes()
-                .value
-                .valid;
-
-            if (valid_resolution != valid_dp)
-                || (valid_dp != valid_truth_table)
-                || (valid_dpll != valid_truth_table)
-            {
-                panic!("Different validity results");
-            }
-
-            println!(
-                "- **Result:** {}",
-                match valid_resolution {
-                    true => "valid".green().markdown(),
-                    false => "invalid".red().markdown(),
-                }
-            );
-        },
-    );
-
-    println!("{}", explanation);
 }
 
 fn exercise_1() {
     println!("# Exercise 1");
 
-    subexercise_1();
-    subexercise_2();
-    subexercise_3();
-    subexercise_4();
-}
-
-fn exercise_3() {
-    println!("# Exercise 3");
-
-    let signature = Signature {
-        functions: indexmap! {
-            "f".to_owned() => 2,
-            "g".to_owned() => 1,
-            "h".to_owned() => 3,
-        },
-        predicates: indexmap! {
-            "P".to_owned() => 2,
-            "Q".to_owned() => 2,
-            "R".to_owned() => 3,
-        },
-        constants: indexset! {
-            "a".to_owned(),
-            "b".to_owned(),
-            "c".to_owned()
-        },
-    };
-
     let test_cases = [
-        "c",
-        "h",
-        "(P ∧ Q)",
-        "P(f(x, a), g(h(c, a, g(y, z)))",
-        "f(g(f(a, h(b, g(x, y)))), Q(a, x))",
-        "∀x((P(x, y) ∨ (R(f(x, y), g(f(y, z)), a))) ⇒ (P(a, b) ⇔ ∃yP(x, y)))",
-        "(R(x, y, c) ∧ ∀aR(a, a, a))",
-        "(h(x, y, c) ∨ ∃xQ(x, x))",
-        "P(x, y) ⇔ ∃xR(x, y, z)",
+        r"4",
+        r"(8 x-5)+7 \geq(3-5 x \Leftrightarrow y>8 z)",
+        r"\neg\left(x-y<x^{2}+y \sqrt{z}\right) \wedge\left(\exists z\left((5+1) * y=5 \frac{x}{y^{2}}\right)\right)",
+        r"\forall x\left(\frac{x+1}{x^{2}+5}>\frac{x^{3}+5 x+11}{1+\frac{x-8}{x^{4}-1}}\right)",
+        r"\neg P(x, y) \Leftrightarrow(\forall x \exists y \forall z((P(y, z) \vee Q(x, y, z)) \Rightarrow(R(x, z, y) \vee \neg P(x, z))))",
     ];
 
     for (i, input) in test_cases.iter().enumerate() {
         println!("## {})", get_letter(i));
 
-        println!("- **Input:** {}", input.magenta().markdown());
+        let common_math_signature = get_common_math_signature();
 
-        let expression = parse_expression(input, signature.clone(), &mut Explanation::default());
-        match expression {
+        println!("- **Input:** $${input}$$");
+
+        println!("- **LaTeX:** {}", input.magenta().markdown());
+
+        let template = get_interpolation_for_latex(input);
+
+        println!("- **1-dimensional syntax:** {}", template.blue().markdown());
+
+        let input = template.as_str();
+
+        let result = parse_expression(input, common_math_signature, &mut Explanation::default());
+
+        match result {
             Ok(expression) => {
                 println!("- **{}**", "Valid expression".green().markdown());
+
                 println!(
                     "- **Expression type:** {}",
                     match expression {
-                        Expression::Term(_) => "term".green().markdown(),
-                        Expression::Formula(_) => "formula".magenta().markdown(),
+                        Expression::Term(_) => "term",
+                        Expression::Formula(_) => "formula",
                     }
+                    .magenta()
+                    .markdown()
                 );
 
-                println!("- **Abstract syntax tree:**\n<pre>{:#?}</pre>", expression);
-            }
-            Err(error) => {
-                println!("- **{}**", "Invalid expression".red().markdown());
+                println!(
+                    "- **Strict syntax:** {}",
+                    expression.to_string().green().markdown()
+                );
 
-                let error = error.trim();
-                if !error.is_empty() {
-                    println!("- **Parsing Error:** {}", error.red().markdown());
+                let mut variables_by_scope = BTreeMap::new();
+                let symbols = expression.get_symbols(&mut variables_by_scope);
+
+                println!(
+                    "- **Functions:** {}",
+                    format!("{:?}", symbols.functions).red().markdown()
+                );
+                println!(
+                    "- **Predicates:** {}",
+                    format!("{:?}", symbols.predicates).blue().markdown()
+                );
+                println!(
+                    "- **Constants:** {}",
+                    format!(
+                        "{{{}}}",
+                        symbols
+                            .constants
+                            .iter()
+                            .map(|constant| constant.to_string())
+                            .join(", ")
+                    )
+                    .green()
+                    .markdown()
+                );
+
+                if variables_by_scope.is_empty() {
+                    println!("- **Variables: {}**", "{}".red().markdown());
                 } else {
-                    println!("- **Parsing Error**");
+                    println!("- **Variables:**");
                 }
+
+                for (scope, variables) in variables_by_scope.iter() {
+                    println!(
+                        "  - **Scope {}:**",
+                        if scope.is_empty() { "." } else { scope }
+                            .magenta()
+                            .markdown()
+                    );
+                    println!(
+                        "    - **Bound variables:** {}",
+                        format!(
+                            "{{{}}}",
+                            variables
+                                .into_iter()
+                                .filter(|(_, bound)| **bound)
+                                .map(|(name, _)| name)
+                                .join(", ")
+                        )
+                        .red()
+                        .markdown()
+                    );
+                    println!(
+                        "    - **Free variables:** {}",
+                        format!(
+                            "{{{}}}",
+                            variables
+                                .into_iter()
+                                .filter(|(_, bound)| !**bound)
+                                .map(|(name, _)| name)
+                                .join(", ")
+                        )
+                        .green()
+                        .markdown()
+                    );
+                }
+            }
+            Err(_) => {
+                println!("- **{}**", "Invalid expression".red().markdown());
             }
         }
     }
 }
 
+fn exercise_2() {
+    println!("# Exercise 2");
+
+    let test_cases = [
+        r"\underset{x, y, z \in \mathbb{R}}{\forall} \underset{k, l \in \mathbb{N}}{\exists}(x, y, z \leqslant k \Rightarrow x+y+z \leqslant l)",
+        r"\begin{array}{r}
+\underset{x<y<z<1}{\forall} \quad \underset{-1 \leqslant \delta \leqslant 1}{\exists} \underset{-|\delta|<\varepsilon_{1}, \varepsilon_{2}<|\delta|}{\forall}\left(z-y<\varepsilon_{1} \Rightarrow y-x<\varepsilon_{2} \Rightarrow\right. \\
+\left.z-x \geqslant \varepsilon_{1}+\varepsilon_{2}+|\delta|\right)
+\end{array}",
+        r"\underset{x \in \mathbb{N}}{\exists!}\left(x^{2}=7\right)",
+    ];
+
+    for (i, input) in test_cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+
+        let common_math_signature = get_common_math_signature();
+
+        println!("- **Input:** $${input}$$");
+
+        println!("- **LaTeX:** {}", input.magenta().markdown());
+
+        let template = get_interpolation_for_latex(input);
+
+        println!("- **1-dimensional syntax:** {}", template.blue().markdown());
+
+        let input = template.as_str();
+
+        let expression =
+            parse_expression(input, common_math_signature, &mut Explanation::default()).unwrap();
+
+        println!(
+            "- **Strict syntax:** {}",
+            expression.to_string().green().markdown()
+        );
+
+        let symbols = expression.get_symbols(&mut BTreeMap::new());
+
+        println!(
+            "- **Functions:** {}",
+            format!("{:?}", symbols.functions).red().markdown()
+        );
+        println!(
+            "- **Predicates:** {}",
+            format!("{:?}", symbols.predicates).blue().markdown()
+        );
+    }
+}
+
 fn main() {
     exercise_1();
-    exercise_3();
+    exercise_2();
 }
