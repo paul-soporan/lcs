@@ -12,7 +12,7 @@ use winnow::{
     ascii::{digit0, digit1, space0},
     combinator::{
         alt, delimited, eof, opt, preceded, repeat, separated, separated_foldl1, separated_foldr1,
-        terminated,
+        separated_pair, terminated,
     },
     error::{
         AddContext, ContextError, ErrMode, ErrorKind, ParserError, StrContext, StrContextValue,
@@ -23,6 +23,8 @@ use winnow::{
 };
 
 use crate::{explanation::Explanation, markdown::Markdown};
+
+use super::substitution::Substitution;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Associativity {
@@ -65,10 +67,10 @@ impl Signature {
     }
 }
 
-#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Variable(pub String);
 
-#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Constant(pub String);
 
 #[derive(Debug, Clone, Default)]
@@ -94,7 +96,7 @@ impl ExpressionSymbols {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Term {
     Variable(Variable),
     Constant(Constant),
@@ -105,6 +107,72 @@ pub enum Term {
 }
 
 impl Term {
+    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+        match self {
+            Term::Variable(v) => {
+                if let Some(term) = substitution.0.get(v) {
+                    *self = term.clone()
+                }
+            }
+            Term::Constant(_) => {}
+            Term::FunctionApplication { arguments, .. } => {
+                for argument in arguments {
+                    argument.apply_substitution(substitution);
+                }
+            }
+        }
+    }
+
+    pub fn with_substitution(&self, substitution: &Substitution) -> Term {
+        let mut cloned = self.clone();
+        cloned.apply_substitution(substitution);
+        cloned
+    }
+
+    pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
+        match self {
+            Term::Variable(v) => v.to_string(),
+            Term::Constant(c) => c.to_string(),
+            Term::FunctionApplication {
+                function,
+                arguments,
+            } => {
+                if arguments.len() == 2 {
+                    let expression = format!(
+                        "{}{}{}",
+                        arguments[0].to_relaxed_syntax(signature, Some(function)),
+                        match function.as_str() {
+                            "[][]" => String::new(),
+                            _ => format!(" {} ", function),
+                        },
+                        arguments[1].to_relaxed_syntax(signature, Some(function))
+                    );
+
+                    if let Some(parent) = parent {
+                        if let Some(parent_symbol) = signature.functions.get(parent) {
+                            if parent_symbol.precedence
+                                > signature.functions.get(function).unwrap().precedence
+                            {
+                                return format!("({})", expression);
+                            }
+                        }
+                    }
+
+                    expression
+                } else {
+                    format!(
+                        "{}({})",
+                        function,
+                        arguments
+                            .iter()
+                            .map(|term| term.to_relaxed_syntax(signature, None))
+                            .join(", ")
+                    )
+                }
+            }
+        }
+    }
+
     pub fn relabel_variable(&mut self, old: &str, new: &str) {
         match self {
             Term::Variable(v) if v.0 == old => v.0 = new.to_owned(),
@@ -211,7 +279,7 @@ impl Display for Term {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Formula {
     PredicateApplication {
         predicate: String,
@@ -227,6 +295,98 @@ pub enum Formula {
 }
 
 impl Formula {
+    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+        match self {
+            Formula::PredicateApplication { arguments, .. } => {
+                for argument in arguments {
+                    argument.apply_substitution(substitution);
+                }
+            }
+            Formula::Negation(f) => f.apply_substitution(substitution),
+            Formula::Conjunction(left, right)
+            | Formula::Disjunction(left, right)
+            | Formula::Implication(left, right)
+            | Formula::Equivalence(left, right) => {
+                left.apply_substitution(substitution);
+                right.apply_substitution(substitution);
+            }
+            Formula::UniversalQuantification(v, f) | Formula::ExistentialQuantification(v, f) => {
+                f.apply_substitution(&substitution.without(v));
+            }
+        }
+    }
+
+    pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
+        match self {
+            Formula::PredicateApplication {
+                predicate,
+                arguments,
+            } => {
+                if arguments.len() == 2 {
+                    let expression = format!(
+                        "{} {predicate} {}",
+                        arguments[0].to_relaxed_syntax(signature, Some(predicate)),
+                        arguments[1].to_relaxed_syntax(signature, Some(predicate))
+                    );
+
+                    if let Some(parent) = parent {
+                        if let Some(parent_symbol) = signature.predicates.get(parent) {
+                            if parent_symbol.arity > 2 {
+                                return format!("({})", expression);
+                            }
+                        }
+                    }
+
+                    expression
+                } else {
+                    format!(
+                        "{}({})",
+                        predicate,
+                        arguments
+                            .iter()
+                            .map(|term| term.to_relaxed_syntax(signature, None))
+                            .join(", ")
+                    )
+                }
+            }
+            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(signature, None)),
+            Formula::Conjunction(left, right) => format!(
+                "{} ∧ {}",
+                left.to_relaxed_syntax(signature, Some("∧")),
+                right.to_relaxed_syntax(signature, Some("∧"))
+            ),
+            Formula::Disjunction(left, right) => format!(
+                "{} ∨ {}",
+                left.to_relaxed_syntax(signature, Some("∨")),
+                right.to_relaxed_syntax(signature, Some("∨"))
+            ),
+            Formula::Implication(left, right) => format!(
+                "{} ⇒ {}",
+                left.to_relaxed_syntax(signature, Some("⇒")),
+                right.to_relaxed_syntax(signature, Some("⇒"))
+            ),
+            Formula::Equivalence(left, right) => format!(
+                "{} ⇔ {}",
+                left.to_relaxed_syntax(signature, Some("⇔")),
+                right.to_relaxed_syntax(signature, Some("⇔"))
+            ),
+            Formula::UniversalQuantification(variable, formula) => {
+                format!(
+                    "∀{}({})",
+                    variable,
+                    formula.to_relaxed_syntax(signature, Some("∀"))
+                )
+            }
+            Formula::ExistentialQuantification(variable, formula) => {
+                format!(
+                    "∃{}({})",
+                    variable,
+                    formula.to_relaxed_syntax(signature, Some("∃"))
+                )
+            }
+        }
+    }
+
     pub fn relabel_variable(&mut self, old: &str, new: &str) {
         match self {
             Formula::PredicateApplication { arguments, .. } => {
@@ -407,6 +567,13 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+        match self {
+            Expression::Term(term) => term.apply_substitution(substitution),
+            Expression::Formula(formula) => formula.apply_substitution(substitution),
+        }
+    }
+
     pub fn get_symbols(
         &self,
         variables_by_scope: &mut BTreeMap<String, BTreeMap<Variable, bool>>,
@@ -426,6 +593,43 @@ struct State<'a> {
 }
 
 type Input<'a> = Stateful<&'a str, State<'a>>;
+
+pub fn parse_substitution(
+    input: &str,
+    signature: Signature,
+    explanation: &mut Explanation,
+) -> Result<Substitution, String> {
+    let state = State {
+        signature,
+        explanation,
+        steps: Vec::new(),
+    };
+    let mut input = Stateful { input, state };
+    terminated(substitution, eof)
+        .parse_next(&mut input)
+        .map_err(|e| e.into_inner().unwrap().to_string())
+}
+
+fn substitution(input: &mut Input) -> PResult<Substitution> {
+    delimited(
+        spaced('{'),
+        separated(0.., substitution_component, spaced(',')).map(|components: Vec<_>| {
+            let mut substitution = Substitution::default();
+            for (variable, term) in components {
+                substitution.0.insert(variable, term);
+            }
+            substitution
+        }),
+        spaced('}'),
+    )
+    .parse_next(input)
+}
+
+fn substitution_component(input: &mut Input) -> PResult<(Variable, Term)> {
+    separated_pair(variable, spaced('←'), term)
+        .map(|(variable, term)| (variable, term))
+        .parse_next(input)
+}
 
 pub fn parse_expression(
     input: &str,
@@ -604,7 +808,7 @@ fn infix_predicate_application(input: &mut Input) -> PResult<Formula> {
     let predicate_name_parser = spaced(alt(predicate_name_parsers.as_mut_slice()));
 
     let mut parser = separated_foldl1(
-        term_list.map(|list| (list, vec![])),
+        term_list.map(|list| (list, Vec::new())),
         predicate_name_parser,
         |(left, mut accumulator), predicate, (right, _)| {
             let mut conjunction = Vec::new();

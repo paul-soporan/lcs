@@ -7,7 +7,8 @@ use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
 use lcs::predicate_logic::latex::get_interpolation_for_latex;
 use lcs::predicate_logic::parser::{
-    parse_expression, Associativity, Expression, FunctionSymbol, PredicateSymbol, Signature,
+    parse_expression, parse_substitution, Associativity, Expression, FunctionSymbol,
+    PredicateSymbol, Signature,
 };
 
 fn get_letter(i: usize) -> char {
@@ -26,6 +27,8 @@ fn get_common_math_signature() -> Signature {
             "^".to_owned() => FunctionSymbol { arities: vec![2], precedence: 3, associativity: Associativity::Right },
 
             "√".to_owned() => FunctionSymbol { arities: vec![1], precedence: 4, associativity: Associativity::Left },
+
+            "[][]".to_owned() => FunctionSymbol { arities: vec![2], precedence: 5, associativity: Associativity::Left },
         },
         predicates: indexmap! {
             "=".to_owned() => PredicateSymbol { arity: 2 },
@@ -181,7 +184,7 @@ fn exercise_1() {
     }
 }
 
-fn exercise_2() {
+fn exercise_2_() {
     println!("# Exercise 2");
 
     let test_cases = [
@@ -229,7 +232,66 @@ fn exercise_2() {
     }
 }
 
+fn exercise_2() {
+    println!("# Exercise 2");
+
+    let theta = &parse_substitution(
+        "{x ← x + 5, y ← 2x + 3, z ← y + u}",
+        get_common_math_signature(),
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    let sigma = &parse_substitution(
+        "{x ← 3x + 3, z ← u + v, v ← x + 2y}",
+        get_common_math_signature(),
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    let lambda = &parse_substitution(
+        "{y ← x + v, u ← 3y, v ← 4z}",
+        get_common_math_signature(),
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    println!("## a)");
+
+    println!(
+        "- **θσ =** {}",
+        (theta * sigma)
+            .to_relaxed_syntax(&get_common_math_signature())
+            .green()
+            .markdown()
+    );
+
+    println!(
+        "- **θλ =** {}",
+        (theta * lambda)
+            .to_relaxed_syntax(&get_common_math_signature())
+            .green()
+            .markdown()
+    );
+
+    println!(
+        "- **θ(σλ) =** {}",
+        (theta * (sigma * lambda))
+            .to_relaxed_syntax(&get_common_math_signature())
+            .green()
+            .markdown()
+    );
+
+    println!(
+        "- **(θσ)λ =** {}",
+        ((theta * sigma) * lambda)
+            .to_relaxed_syntax(&get_common_math_signature())
+            .green()
+            .markdown()
+    );
+}
+
 fn main() {
-    exercise_1();
+    // exercise_1();
     exercise_2();
 }
