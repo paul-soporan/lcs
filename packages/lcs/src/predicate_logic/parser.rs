@@ -43,15 +43,16 @@ pub struct FunctionSymbol {
 
 #[derive(Debug, Clone)]
 pub struct PredicateSymbol {
-    pub arity: usize,
+    pub arities: Vec<usize>,
+    pub infix: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Signature {
     pub functions: IndexMap<String, FunctionSymbol>,
     pub predicates: IndexMap<String, PredicateSymbol>,
     #[debug(skip)]
-    pub is_constant: Box<dyn Fn(&str) -> bool>,
+    pub is_constant: fn(&str) -> bool,
 }
 
 impl Signature {
@@ -107,26 +108,69 @@ pub enum Term {
 }
 
 impl Term {
-    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+    pub fn contains_variable(&self, variable: &Variable) -> bool {
+        match self {
+            Term::Variable(v) => v == variable,
+            Term::Constant(_) => false,
+            Term::FunctionApplication { arguments, .. } => arguments
+                .iter()
+                .any(|argument| argument.contains_variable(variable)),
+        }
+    }
+
+    pub fn apply_substitution(
+        &mut self,
+        substitution: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) {
+        explanation.step(format!(
+            "({})<sub>{}</sub>",
+            self.to_relaxed_syntax(&signature, None).red().markdown(),
+            substitution.name
+        ));
+
         match self {
             Term::Variable(v) => {
-                if let Some(term) = substitution.0.get(v) {
+                if let Some(term) = substitution.mapping.get(v) {
                     *self = term.clone()
                 }
             }
             Term::Constant(_) => {}
-            Term::FunctionApplication { arguments, .. } => {
+            Term::FunctionApplication {
+                function,
+                arguments,
+            } => {
                 for argument in arguments {
-                    argument.apply_substitution(substitution);
+                    argument.apply_substitution(
+                        substitution,
+                        signature,
+                        explanation.subexplanation(""),
+                    );
                 }
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{}({})", function, subexplanations.join(", "))
+                });
             }
-        }
+        };
+
+        explanation.step(self.to_relaxed_syntax(&signature, None).green().markdown());
     }
 
-    pub fn with_substitution(&self, substitution: &Substitution) -> Term {
+    pub fn with_substitution(
+        &self,
+        substitution: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) -> Term {
         let mut cloned = self.clone();
-        cloned.apply_substitution(substitution);
+        cloned.apply_substitution(substitution, signature, explanation);
         cloned
+    }
+
+    pub fn is_substitutable(&self, _: &Term, _: &Variable) -> bool {
+        true
     }
 
     pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
@@ -295,23 +339,169 @@ pub enum Formula {
 }
 
 impl Formula {
-    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+    pub fn apply_substitution(
+        &mut self,
+        substitution: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) {
+        explanation.step(format!(
+            "({})<sub>{}</sub>",
+            self.to_relaxed_syntax(&signature, None).red().markdown(),
+            substitution.name
+        ));
+
         match self {
-            Formula::PredicateApplication { arguments, .. } => {
+            Formula::PredicateApplication {
+                predicate,
+                arguments,
+            } => {
                 for argument in arguments {
-                    argument.apply_substitution(substitution);
+                    argument.apply_substitution(
+                        substitution,
+                        signature,
+                        explanation.subexplanation(""),
+                    );
                 }
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{predicate}({})", subexplanations.join(", "))
+                });
             }
-            Formula::Negation(f) => f.apply_substitution(substitution),
+            Formula::Negation(f) => {
+                f.apply_substitution(substitution, signature, explanation.subexplanation(""));
+
+                explanation
+                    .merge_subexplanations(|subexplanations| format!("¬{}", subexplanations[0]));
+            }
+            Formula::Conjunction(left, right) => {
+                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{} ∧ {}", subexplanations[0], subexplanations[1])
+                });
+            }
+            Formula::Disjunction(left, right) => {
+                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{} ∨ {}", subexplanations[0], subexplanations[1])
+                });
+            }
+            Formula::Implication(left, right) => {
+                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{} ⇒ {}", subexplanations[0], subexplanations[1])
+                });
+            }
+            Formula::Equivalence(left, right) => {
+                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{} ⇔ {}", subexplanations[0], subexplanations[1])
+                });
+            }
+            Formula::UniversalQuantification(v, f) => {
+                f.apply_substitution(
+                    &substitution.without(v, signature),
+                    signature,
+                    explanation.subexplanation(""),
+                );
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("∀{}({})", v, subexplanations[0])
+                });
+            }
+            Formula::ExistentialQuantification(v, f) => {
+                f.apply_substitution(
+                    &substitution.without(v, signature),
+                    signature,
+                    explanation.subexplanation(""),
+                );
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("∃{}({})", v, subexplanations[0])
+                });
+            }
+        }
+
+        explanation.step(self.to_relaxed_syntax(&signature, None).green().markdown());
+    }
+
+    pub fn is_substitutable(
+        &self,
+        term: &Term,
+        variable: &Variable,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) -> bool {
+        explanation.step(format!(
+            "Checking if {} is substitutable for {} in {}",
+            term.to_relaxed_syntax(signature, None).red().markdown(),
+            variable.to_string().blue().markdown(),
+            self.to_relaxed_syntax(signature, None).green().markdown()
+        ));
+
+        match self {
+            Formula::PredicateApplication { .. } => {
+                explanation.step("Predicate application -> substitutable".to_owned());
+                true
+            }
+            Formula::Negation(f) => f.is_substitutable(
+                term,
+                variable,
+                signature,
+                explanation.subexplanation("Negation"),
+            ),
             Formula::Conjunction(left, right)
             | Formula::Disjunction(left, right)
             | Formula::Implication(left, right)
             | Formula::Equivalence(left, right) => {
-                left.apply_substitution(substitution);
-                right.apply_substitution(substitution);
+                left.is_substitutable(term, variable, signature, explanation.subexplanation("LHS"))
+                    && right.is_substitutable(
+                        term,
+                        variable,
+                        signature,
+                        explanation.subexplanation("RHS"),
+                    )
             }
             Formula::UniversalQuantification(v, f) | Formula::ExistentialQuantification(v, f) => {
-                f.apply_substitution(&substitution.without(v));
+                if v == variable {
+                    explanation.step(format!("{} is bound (protected) -> substitutable", v));
+                    true
+                } else {
+                    let contains_variable = term.contains_variable(v);
+                    if contains_variable {
+                        explanation.step(format!("{} is free in term -> not substitutable ", v));
+
+                        return false;
+                    }
+
+                    let is_substitutable_in_subformula = f.is_substitutable(
+                        term,
+                        variable,
+                        signature,
+                        explanation.subexplanation("Subformula of quantified formula"),
+                    );
+
+                    if is_substitutable_in_subformula {
+                        explanation.step(
+                            "Variable is substitutable in subformula -> substitutable".to_owned(),
+                        );
+                    } else {
+                        explanation.step(
+                            "Variable is not substitutable in subformula -> not substitutable"
+                                .to_owned(),
+                        );
+                    }
+
+                    is_substitutable_in_subformula
+                }
             }
         }
     }
@@ -322,7 +512,7 @@ impl Formula {
                 predicate,
                 arguments,
             } => {
-                if arguments.len() == 2 {
+                if arguments.len() == 2 && signature.predicates[predicate].infix {
                     let expression = format!(
                         "{} {predicate} {}",
                         arguments[0].to_relaxed_syntax(signature, Some(predicate)),
@@ -331,7 +521,7 @@ impl Formula {
 
                     if let Some(parent) = parent {
                         if let Some(parent_symbol) = signature.predicates.get(parent) {
-                            if parent_symbol.arity > 2 {
+                            if parent_symbol.arities.iter().any(|arity| *arity > 2) {
                                 return format!("({})", expression);
                             }
                         }
@@ -560,17 +750,31 @@ impl Display for Formula {
     }
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug, Display, Clone)]
 pub enum Expression {
     Term(Term),
     Formula(Formula),
 }
 
 impl Expression {
-    pub fn apply_substitution(&mut self, substitution: &Substitution) {
+    pub fn to_relaxed_syntax(&self, signature: &Signature) -> String {
         match self {
-            Expression::Term(term) => term.apply_substitution(substitution),
-            Expression::Formula(formula) => formula.apply_substitution(substitution),
+            Expression::Term(term) => term.to_relaxed_syntax(signature, None),
+            Expression::Formula(formula) => formula.to_relaxed_syntax(signature, None),
+        }
+    }
+
+    pub fn apply_substitution(
+        &mut self,
+        substitution: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) {
+        match self {
+            Expression::Term(term) => term.apply_substitution(substitution, signature, explanation),
+            Expression::Formula(formula) => {
+                formula.apply_substitution(substitution, signature, explanation)
+            }
         }
     }
 
@@ -596,11 +800,11 @@ type Input<'a> = Stateful<&'a str, State<'a>>;
 
 pub fn parse_substitution(
     input: &str,
-    signature: Signature,
+    signature: &Signature,
     explanation: &mut Explanation,
 ) -> Result<Substitution, String> {
     let state = State {
-        signature,
+        signature: signature.clone(),
         explanation,
         steps: Vec::new(),
     };
@@ -614,9 +818,12 @@ fn substitution(input: &mut Input) -> PResult<Substitution> {
     delimited(
         spaced('{'),
         separated(0.., substitution_component, spaced(',')).map(|components: Vec<_>| {
-            let mut substitution = Substitution::default();
+            let mut substitution = Substitution {
+                name: "σ".to_owned(),
+                mapping: IndexMap::new(),
+            };
             for (variable, term) in components {
-                substitution.0.insert(variable, term);
+                substitution.mapping.insert(variable, term);
             }
             substitution
         }),
@@ -633,11 +840,11 @@ fn substitution_component(input: &mut Input) -> PResult<(Variable, Term)> {
 
 pub fn parse_expression(
     input: &str,
-    signature: Signature,
+    signature: &Signature,
     explanation: &mut Explanation,
 ) -> Result<Expression, String> {
     let state = State {
-        signature,
+        signature: signature.clone(),
         explanation,
         steps: Vec::new(),
     };
@@ -759,18 +966,25 @@ fn negation(input: &mut Input) -> PResult<Formula> {
 
 fn predicate_application(input: &mut Input) -> PResult<Formula> {
     let name = predicate_name(input)?;
-    let arity = input.state.signature.predicates.get(&name).unwrap().arity;
+    let arities = input
+        .state
+        .signature
+        .predicates
+        .get(&name)
+        .unwrap()
+        .arities
+        .clone();
 
     let checkpoint = input.checkpoint();
 
     let arguments: Vec<Term> = argument_list.parse_next(input)?;
-    if arguments.len() != arity {
+    if !arities.contains(&arguments.len()) {
         return Err(ErrMode::from_error_kind(input, ErrorKind::Many)
             .add_context(
                 input,
                 &checkpoint,
                 StrContext::Label(
-                    format!("predicate application for {name} - arity mismatch - expected {arity} arguments, got {}", arguments.len()).leak(),
+                    format!("predicate application for {name} - arity mismatch - expected TODO arguments, got {}", arguments.len()).leak(),
                 ),
             )
             .cut());
@@ -788,15 +1002,13 @@ fn infix_predicate_application(input: &mut Input) -> PResult<Formula> {
         .signature
         .predicates
         .iter()
-        .filter_map(
-            |(name, symbol)| {
-                if symbol.arity == 2 {
-                    Some(name)
-                } else {
-                    None
-                }
-            },
-        )
+        .filter_map(|(name, symbol)| {
+            if symbol.arities.contains(&2) {
+                Some(name)
+            } else {
+                None
+            }
+        })
         .cloned()
         .collect::<Vec<_>>();
 

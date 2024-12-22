@@ -1,15 +1,20 @@
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::fmt::Display;
+use std::ops::{Add, Mul};
 
+use as_variant::as_variant;
 use colored::Colorize;
 use indexmap::indexmap;
 use itertools::Itertools;
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
-use lcs::predicate_logic::latex::get_interpolation_for_latex;
+use lcs::predicate_logic::evaluate::{Assignment, Function, Interpretation, Predicate};
 use lcs::predicate_logic::parser::{
     parse_expression, parse_substitution, Associativity, Expression, FunctionSymbol,
-    PredicateSymbol, Signature,
+    PredicateSymbol, Signature, Term,
 };
+use lcs::predicate_logic::substitution::Substitution;
+use maplit::btreeset;
 
 fn get_letter(i: usize) -> char {
     (b'a' + i as u8) as char
@@ -31,19 +36,19 @@ fn get_common_math_signature() -> Signature {
             "[][]".to_owned() => FunctionSymbol { arities: vec![2], precedence: 5, associativity: Associativity::Left },
         },
         predicates: indexmap! {
-            "=".to_owned() => PredicateSymbol { arity: 2 },
-            "<".to_owned() => PredicateSymbol { arity: 2 },
-            "⩽".to_owned() => PredicateSymbol { arity: 2 },
-            ">".to_owned() => PredicateSymbol { arity: 2 },
-            "⩾".to_owned() => PredicateSymbol { arity: 2 },
+            "=".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "<".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "⩽".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            ">".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "⩾".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
 
-            "∈".to_owned() => PredicateSymbol { arity: 2 },
+            "∈".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
 
-            "P".to_owned() => PredicateSymbol { arity: 2 },
-            "Q".to_owned() => PredicateSymbol { arity: 3 },
-            "R".to_owned() => PredicateSymbol { arity: 3 },
+            "P".to_owned() => PredicateSymbol { arities: vec![2], infix: false },
+            "Q".to_owned() => PredicateSymbol { arities: vec![3, 2], infix: false },
+            "R".to_owned() => PredicateSymbol { arities: vec![3], infix: false },
         },
-        is_constant: Box::new(|name| {
+        is_constant: |name| {
             if name == "ℕ" || name == "ℝ" {
                 return true;
             }
@@ -60,238 +65,807 @@ fn get_common_math_signature() -> Signature {
             }
 
             false
-        }),
+        },
     }
 }
 
 fn exercise_1() {
     println!("# Exercise 1");
 
-    let test_cases = [
-        r"4",
-        r"(8 x-5)+7 \geq(3-5 x \Leftrightarrow y>8 z)",
-        r"\neg\left(x-y<x^{2}+y \sqrt{z}\right) \wedge\left(\exists z\left((5+1) * y=5 \frac{x}{y^{2}}\right)\right)",
-        r"\forall x\left(\frac{x+1}{x^{2}+5}>\frac{x^{3}+5 x+11}{1+\frac{x-8}{x^{4}-1}}\right)",
-        r"\neg P(x, y) \Leftrightarrow(\forall x \exists y \forall z((P(y, z) \vee Q(x, y, z)) \Rightarrow(R(x, z, y) \vee \neg P(x, z))))",
+    let substitutions = [
+        ("x", "{x←z+2}"),
+        ("(x + y)", "{x←z+2,y←x+y}"),
+        ("(xy)", "{x←z+2,y←y+5}"),
+        (
+            "(¬P(x, y) ⇔ (∀x∃y∀z((P(y, z)∨Q(x, y, z)) ⇒ (R(x, z, y)∨¬P(x, z)))))",
+            "{x←(y+z),y←xy,z←(x+c)}",
+        ),
     ];
 
-    for (i, input) in test_cases.iter().enumerate() {
+    for (i, &(input, substitution)) in substitutions.iter().enumerate() {
         println!("## {})", get_letter(i));
 
-        let common_math_signature = get_common_math_signature();
+        println!("- **Expression:** {}", input.red().markdown());
+        println!("- **Substitution:** {}", substitution.blue().markdown());
 
-        println!("- **Input:** $${input}$$");
+        let signature = get_common_math_signature();
 
-        println!("- **LaTeX:** {}", input.magenta().markdown());
+        let mut expression =
+            parse_expression(input, &signature, &mut Explanation::default()).unwrap();
+        let substitution =
+            parse_substitution(substitution, &signature, &mut Explanation::default()).unwrap();
 
-        let template = get_interpolation_for_latex(input);
+        let mut explanation = Explanation::default();
 
-        println!("- **1-dimensional syntax:** {}", template.blue().markdown());
-
-        let input = template.as_str();
-
-        let result = parse_expression(input, common_math_signature, &mut Explanation::default());
-
-        match result {
-            Ok(expression) => {
-                println!("- **{}**", "Valid expression".green().markdown());
-
-                println!(
-                    "- **Expression type:** {}",
-                    match expression {
-                        Expression::Term(_) => "term",
-                        Expression::Formula(_) => "formula",
-                    }
-                    .magenta()
-                    .markdown()
-                );
-
-                println!(
-                    "- **Strict syntax:** {}",
-                    expression.to_string().green().markdown()
-                );
-
-                let mut variables_by_scope = BTreeMap::new();
-                let symbols = expression.get_symbols(&mut variables_by_scope);
-
-                println!(
-                    "- **Functions:** {}",
-                    format!("{:?}", symbols.functions).red().markdown()
-                );
-                println!(
-                    "- **Predicates:** {}",
-                    format!("{:?}", symbols.predicates).blue().markdown()
-                );
-                println!(
-                    "- **Constants:** {}",
-                    format!(
-                        "{{{}}}",
-                        symbols
-                            .constants
-                            .iter()
-                            .map(|constant| constant.to_string())
-                            .join(", ")
-                    )
-                    .green()
-                    .markdown()
-                );
-
-                if variables_by_scope.is_empty() {
-                    println!("- **Variables: {}**", "{}".red().markdown());
-                } else {
-                    println!("- **Variables:**");
-                }
-
-                for (scope, variables) in variables_by_scope.iter() {
-                    println!(
-                        "  - **Scope {}:**",
-                        if scope.is_empty() { "." } else { scope }
-                            .magenta()
-                            .markdown()
-                    );
-                    println!(
-                        "    - **Bound variables:** {}",
-                        format!(
-                            "{{{}}}",
-                            variables
-                                .into_iter()
-                                .filter(|(_, bound)| **bound)
-                                .map(|(name, _)| name)
-                                .join(", ")
-                        )
-                        .red()
-                        .markdown()
-                    );
-                    println!(
-                        "    - **Free variables:** {}",
-                        format!(
-                            "{{{}}}",
-                            variables
-                                .into_iter()
-                                .filter(|(_, bound)| !**bound)
-                                .map(|(name, _)| name)
-                                .join(", ")
-                        )
-                        .green()
-                        .markdown()
-                    );
-                }
-            }
-            Err(_) => {
-                println!("- **{}**", "Invalid expression".red().markdown());
-            }
-        }
-    }
-}
-
-fn exercise_2_() {
-    println!("# Exercise 2");
-
-    let test_cases = [
-        r"\underset{x, y, z \in \mathbb{R}}{\forall} \underset{k, l \in \mathbb{N}}{\exists}(x, y, z \leqslant k \Rightarrow x+y+z \leqslant l)",
-        r"\begin{array}{r}
-\underset{x<y<z<1}{\forall} \quad \underset{-1 \leqslant \delta \leqslant 1}{\exists} \underset{-|\delta|<\varepsilon_{1}, \varepsilon_{2}<|\delta|}{\forall}\left(z-y<\varepsilon_{1} \Rightarrow y-x<\varepsilon_{2} \Rightarrow\right. \\
-\left.z-x \geqslant \varepsilon_{1}+\varepsilon_{2}+|\delta|\right)
-\end{array}",
-        r"\underset{x \in \mathbb{N}}{\exists!}\left(x^{2}=7\right)",
-    ];
-
-    for (i, input) in test_cases.iter().enumerate() {
-        println!("## {})", get_letter(i));
-
-        let common_math_signature = get_common_math_signature();
-
-        println!("- **Input:** $${input}$$");
-
-        println!("- **LaTeX:** {}", input.magenta().markdown());
-
-        let template = get_interpolation_for_latex(input);
-
-        println!("- **1-dimensional syntax:** {}", template.blue().markdown());
-
-        let input = template.as_str();
-
-        let expression =
-            parse_expression(input, common_math_signature, &mut Explanation::default()).unwrap();
+        expression.apply_substitution(&substitution, &signature, &mut explanation);
 
         println!(
-            "- **Strict syntax:** {}",
-            expression.to_string().green().markdown()
+            "- **Result:** {}",
+            expression.to_relaxed_syntax(&signature).green().markdown()
         );
 
-        let symbols = expression.get_symbols(&mut BTreeMap::new());
-
-        println!(
-            "- **Functions:** {}",
-            format!("{:?}", symbols.functions).red().markdown()
-        );
-        println!(
-            "- **Predicates:** {}",
-            format!("{:?}", symbols.predicates).blue().markdown()
-        );
+        println!("- **Explanation:**\n{}", explanation.to_string());
     }
 }
 
 fn exercise_2() {
     println!("# Exercise 2");
 
-    let theta = &parse_substitution(
+    let common_math_signature = get_common_math_signature();
+
+    let mut theta = parse_substitution(
         "{x ← x + 5, y ← 2x + 3, z ← y + u}",
-        get_common_math_signature(),
+        &common_math_signature,
         &mut Explanation::default(),
     )
     .unwrap();
 
-    let sigma = &parse_substitution(
+    theta.name = "θ".to_owned();
+
+    let mut sigma = parse_substitution(
         "{x ← 3x + 3, z ← u + v, v ← x + 2y}",
-        get_common_math_signature(),
+        &common_math_signature,
         &mut Explanation::default(),
     )
     .unwrap();
 
-    let lambda = &parse_substitution(
+    sigma.name = "σ".to_owned();
+
+    let mut lambda = parse_substitution(
         "{y ← x + v, u ← 3y, v ← 4z}",
-        get_common_math_signature(),
+        &common_math_signature,
         &mut Explanation::default(),
     )
     .unwrap();
+
+    lambda.name = "λ".to_owned();
 
     println!("## a)");
 
+    let explanation = &mut Explanation::default();
+
     println!(
         "- **θσ =** {}",
-        (theta * sigma)
+        (theta.compose(&sigma, &common_math_signature, explanation))
             .to_relaxed_syntax(&get_common_math_signature())
             .green()
             .markdown()
     );
+
+    println!("- **Explanation:**\n{}", explanation.to_string());
+
+    let explanation = &mut Explanation::default();
 
     println!(
         "- **θλ =** {}",
-        (theta * lambda)
+        theta
+            .compose(&lambda, &common_math_signature, explanation)
             .to_relaxed_syntax(&get_common_math_signature())
             .green()
             .markdown()
     );
+
+    println!("- **Explanation:**\n{}", explanation.to_string());
+
+    let explanation = &mut Explanation::default();
 
     println!(
         "- **θ(σλ) =** {}",
-        (theta * (sigma * lambda))
+        theta
+            .compose(
+                &sigma.compose(&lambda, &common_math_signature, explanation),
+                &common_math_signature,
+                explanation
+            )
             .to_relaxed_syntax(&get_common_math_signature())
             .green()
             .markdown()
     );
 
+    println!("- **Explanation:**\n{}", explanation.to_string());
+
+    let explanation = &mut Explanation::default();
+
     println!(
         "- **(θσ)λ =** {}",
-        ((theta * sigma) * lambda)
+        theta
+            .compose(&sigma, &common_math_signature, explanation)
+            .compose(&lambda, &common_math_signature, explanation)
             .to_relaxed_syntax(&get_common_math_signature())
             .green()
             .markdown()
+    );
+
+    println!("- **Explanation:**\n{}", explanation.to_string());
+
+    println!("## b)");
+
+    let mut f = parse_expression(
+        "(P(x, y + z) ⇒ (Q(uv, x + y) ∧ P(x, y)))",
+        &common_math_signature,
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    let mut g = parse_expression(
+        "∃v(P(x, y + z) ⇒ (Q(uv, x + y) ∧ P(x, y)))",
+        &common_math_signature,
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    let explanation = &mut Explanation::default();
+
+    f.apply_substitution(&theta, &common_math_signature, explanation);
+
+    println!("- **F<sub>θ</sub>:**\n{}", explanation.to_string());
+
+    let explanation = &mut Explanation::default();
+
+    g.apply_substitution(&sigma, &common_math_signature, explanation);
+
+    println!("- **G<sub>σ</sub>:**\n{}", explanation.to_string());
+}
+
+fn exercise_3() {
+    println!("# Exercise 3");
+
+    let signature = Signature {
+        functions: indexmap! {
+            "f".to_owned() => FunctionSymbol { arities: vec![1], precedence: 1, associativity: Associativity::Left },
+            "g".to_owned() => FunctionSymbol { arities: vec![1], precedence: 1, associativity: Associativity::Left },
+            "∗".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+        },
+        predicates: indexmap! {
+            "p".to_owned() => PredicateSymbol { arities: vec![4], infix: false },
+        },
+        is_constant: |name| false,
+    };
+
+    let mut theta = parse_substitution(
+        "{x ← f(g(y)), y ← u, z ← f(y)}",
+        &signature,
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    theta.name = "θ".to_owned();
+
+    let mut sigma = parse_substitution(
+        "{u ← y, y ← f(a), x ← g(u)}",
+        &signature,
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    sigma.name = "σ".to_owned();
+
+    let mut e = parse_expression(
+        "p(x, f(y), g(u), z)",
+        &signature,
+        &mut Explanation::default(),
+    )
+    .unwrap();
+
+    let explanation = &mut Explanation::default();
+
+    let theta_sigma = theta.compose(&sigma, &signature, explanation);
+
+    println!("- **Computing θσ:** {}", explanation);
+
+    let explanation = &mut Explanation::default();
+
+    e.clone()
+        .apply_substitution(&theta_sigma, &signature, explanation);
+
+    println!("- **Computing E<sub>(θσ)</sub>:** {}", explanation);
+
+    let explanation = &mut Explanation::default();
+
+    e.apply_substitution(&theta, &signature, explanation);
+
+    println!("- **Computing E<sub>θ</sub>:** {}", explanation);
+
+    let explanation = &mut Explanation::default();
+
+    e.apply_substitution(&sigma, &signature, explanation);
+
+    println!(
+        "- **Computing (E<sub>θ</sub>)<sub>σ</sub>:** {}",
+        explanation
+    );
+
+    println!("- **Conclusion:** E<sub>(θσ)</sub> = (E<sub>θ</sub>)<sub>σ</sub>");
+}
+
+fn exercise_4() {
+    println!("# Exercise 4");
+
+    let common_math_signature = get_common_math_signature();
+
+    let cases = [
+        ("y + 1", "x", "∃y(x = 2y)"),
+        ("y + 1", "y", "∀y(x = 2y)"),
+        ("vw", "x", "∃y(x < vx ⇒ (∃w(w < v)))"),
+        ("vw", "v", "∃y(x < vx ⇒ (∃w(w < v)))"),
+        ("vw", "w", "∃y(x < vx ⇒ (∃w(w < v)))"),
+    ];
+
+    for (i, (term, variable, formula)) in cases.iter().enumerate() {
+        println!("## {})", get_letter(i));
+
+        println!("- **Term:** {}", term.red().markdown());
+        println!("- **Variable:** {}", variable.blue().markdown());
+        println!("- **Formula:** {}", formula.magenta().markdown());
+
+        let term = as_variant!(
+            parse_expression(term, &common_math_signature, &mut Explanation::default()).unwrap(),
+            Expression::Term
+        )
+        .unwrap();
+
+        let variable = as_variant!(
+            as_variant!(
+                parse_expression(
+                    variable,
+                    &common_math_signature,
+                    &mut Explanation::default()
+                )
+                .unwrap(),
+                Expression::Term
+            )
+            .unwrap(),
+            Term::Variable
+        )
+        .unwrap();
+
+        let mut formula = as_variant!(
+            parse_expression(formula, &common_math_signature, &mut Explanation::default()).unwrap(),
+            Expression::Formula
+        )
+        .unwrap();
+
+        let mut explanation = Explanation::default();
+
+        let is_substitutable =
+            formula.is_substitutable(&term, &variable, &common_math_signature, &mut explanation);
+
+        println!(
+            "- **Substitutable:** {}",
+            if is_substitutable {
+                "Yes".green().markdown()
+            } else {
+                "No".red().markdown()
+            }
+        );
+
+        println!("- **Explanation:**\n{}", explanation.to_string());
+
+        if is_substitutable {
+            let substitution = Substitution {
+                name: "σ".to_owned(),
+                mapping: indexmap! { variable => term },
+            };
+
+            let mut explanation = Explanation::default();
+
+            formula.apply_substitution(&substitution, &common_math_signature, &mut explanation);
+
+            println!("- **Result:**\n{}", explanation.to_string());
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Polynomial(Vec<f32>);
+
+impl Add for Polynomial {
+    type Output = Polynomial;
+
+    fn add(self, other: Polynomial) -> Polynomial {
+        let mut result = vec![0.0; self.0.len().max(other.0.len())];
+
+        for i in 0..result.len() {
+            result[i] = self.0.get(i).unwrap_or(&0.0) + other.0.get(i).unwrap_or(&0.0);
+        }
+
+        Polynomial(result)
+    }
+}
+
+impl Mul for Polynomial {
+    type Output = Polynomial;
+
+    fn mul(self, other: Polynomial) -> Polynomial {
+        let mut result = vec![0.0; self.0.len() + other.0.len() - 1];
+
+        for i in 0..self.0.len() {
+            for j in 0..other.0.len() {
+                result[i + j] += self.0[i] * other.0[j];
+            }
+        }
+
+        Polynomial(result)
+    }
+}
+
+impl Display for Polynomial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut components = vec![];
+
+        for (i, coefficient) in self.0.iter().enumerate() {
+            if *coefficient == 0.0 {
+                continue;
+            }
+
+            let mut component = match coefficient {
+                1.0 if i > 1 => "".to_owned(),
+                -1.0 if i > 1 => "-".to_owned(),
+                _ => format!("{:.1}", coefficient),
+            };
+
+            if i > 0 {
+                component += "X";
+
+                if i > 1 {
+                    component += &format!("<sup>{}</sup>", i);
+                }
+            }
+
+            components.push(component);
+        }
+
+        components.reverse();
+
+        if components.is_empty() {
+            write!(f, "0")
+        } else {
+            write!(f, "{}", components.join(" + "))
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum SetElement {
+    Number(i32),
+    Tuple(Box<SetElement>, Box<SetElement>),
+    Set(Set),
+}
+
+impl Display for SetElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SetElement::Number(number) => write!(f, "{}", number),
+            SetElement::Tuple(a, b) => write!(f, "({}, {})", a, b),
+            SetElement::Set(set) => {
+                write!(f, "{}", set)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct Set(BTreeSet<SetElement>);
+
+impl Display for Set {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+
+        for (i, element) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+
+            write!(f, "{}", element)?;
+        }
+
+        write!(f, "}}")
+    }
+}
+
+fn exercise_5() {
+    println!("# Exercise 5");
+
+    let signature = Signature {
+        functions: indexmap! {
+            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+            "−".to_owned() => FunctionSymbol { arities: vec![1], precedence: 1, associativity: Associativity::Left },
+            "∗".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+        },
+        predicates: indexmap! {
+            "=".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "<".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "≤".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+        },
+        is_constant: |name| ["0", "1"].contains(&name),
+    };
+
+    let first_expression = as_variant!(
+        parse_expression("(x + (−y)) ∗ z", &signature, &mut Explanation::default()).unwrap(),
+        Expression::Term
+    )
+    .unwrap();
+    let second_expression = as_variant!(
+        parse_expression(
+            "(x ∗ y + (−z)) ≤ (−z + 1) ∗ 0",
+            &signature,
+            &mut Explanation::default(),
+        )
+        .unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+    let third_expression = as_variant!(
+        parse_expression(
+            "(x ∗ (y + z)) = (x ∗ y) + (x ∗ z)",
+            &signature,
+            &mut Explanation::default(),
+        )
+        .unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let natural_numbers_assignment = Assignment::<u32> {
+        signature: signature.clone(),
+        interpretation: Interpretation {
+            functions: indexmap! {
+                "+".to_owned() => Function {
+                    name: "+".to_owned(),
+                    arity: 2,
+                    function: |arguments| arguments[0] + arguments[1],
+                },
+                "−".to_owned() => Function {
+                    name: "square".to_owned(),
+                    arity: 1,
+                    function: |arguments| arguments[0] * arguments[0],
+                },
+                "∗".to_owned() => Function {
+                    name: "∗".to_owned(),
+                    arity: 2,
+                    function: |arguments| arguments[0] * arguments[1],
+                },
+            },
+            constants: indexmap! {
+                "0".to_owned() => 0,
+                "1".to_owned() => 1,
+            },
+            predicates: indexmap! {
+                "=".to_owned() => Predicate {
+                    name: "=".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] == arguments[1],
+                },
+                "<".to_owned() => Predicate {
+                    name: "<".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] < arguments[1],
+                },
+                "≤".to_owned() => Predicate {
+                    name: "≤".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] <= arguments[1],
+                },
+            },
+        },
+        variables: indexmap! {
+            "x".to_owned() => 1,
+            "y".to_owned() => 2,
+            "z".to_owned() => 3,
+        },
+    };
+
+    let univariate_polynomials_over_reals_assignment = Assignment::<Polynomial> {
+        signature: signature.clone(),
+        interpretation: Interpretation {
+            functions: indexmap! {
+                "+".to_owned() => Function {
+                    name: "+".to_owned(),
+                    arity: 2,
+                    function: |arguments: &[Polynomial]| arguments[0].clone() + arguments[1].clone(),
+                },
+                "−".to_owned() => Function {
+                    name: "−".to_owned(),
+                    arity: 1,
+                    function: |arguments| arguments[0].clone() * Polynomial(vec![-1.0]),
+                },
+                "∗".to_owned() => Function {
+                    name: "∗".to_owned(),
+                    arity: 2,
+                    function: |arguments| arguments[0].clone() * arguments[1].clone(),
+                },
+            },
+            constants: indexmap! {
+                "0".to_owned() => Polynomial(vec![]),
+                "1".to_owned() => Polynomial(vec![1.0]),
+            },
+            predicates: indexmap! {
+                "=".to_owned() => Predicate {
+                    name: "=".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] == arguments[1],
+                },
+                "<".to_owned() => Predicate {
+                    name: "degree_<".to_owned(),
+                    arity: 2,
+                    predicate: |arguments: &[Polynomial]| arguments[0].0.len() < arguments[1].0.len(),
+                },
+                "≤".to_owned() => Predicate {
+                    name: "degree_≤".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0].0.len() <= arguments[1].0.len(),
+                },
+            },
+        },
+        variables: indexmap! {
+            "x".to_owned() => Polynomial(vec![7.0]),
+            "y".to_owned() => Polynomial(vec![0.0, 10.0]),
+            "z".to_owned() => Polynomial(vec![5.3, 0.0, 1.0]),
+        },
+    };
+
+    let sets_assignment = Assignment::<Set> {
+        signature: signature.clone(),
+        interpretation: Interpretation {
+            functions: indexmap! {
+                "+".to_owned() => Function {
+                    name: "∪".to_owned(),
+                    arity: 2,
+                    function: |arguments: &[Set]| Set(arguments[0].0.union(&arguments[1].0).cloned().collect()),
+                },
+                "−".to_owned() => Function {
+                    name: "powerset".to_owned(),
+                    arity: 1,
+                    function: |arguments| Set(arguments[0].0.iter().powerset()
+                    .map(|set| SetElement::Set(Set(set.into_iter().cloned().collect()))).collect()),
+                },
+                "∗".to_owned() => Function {
+                    name: "×".to_owned(),
+                    arity: 2,
+                    function: |arguments| {
+                        Set(arguments[0].0.iter().cloned().cartesian_product(arguments[1].0.iter().cloned())
+                        .map(|(a, b)| SetElement::Tuple(Box::new(a), Box::new(b))).collect())
+                    },
+                },
+            },
+            constants: indexmap! {
+                "0".to_owned() => Set(btreeset! {}),
+                "1".to_owned() => Set(btreeset! {SetElement::Number(1) }),
+            },
+            predicates: indexmap! {
+                "=".to_owned() => Predicate {
+                    name: "=".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] == arguments[1],
+                },
+                "<".to_owned() => Predicate {
+                    name: "⊂".to_owned(),
+                    arity: 2,
+                    predicate: |arguments: &[Set]| arguments[0] != arguments[1] && arguments[0].0.is_subset(&arguments[1].0),
+                },
+                "≤".to_owned() => Predicate {
+                    name: "⊆".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0].0.is_subset(&arguments[1].0),
+                },
+            },
+        },
+        variables: indexmap! {
+            "x".to_owned() => Set(btreeset! { SetElement::Number(1), SetElement::Number(2) }),
+            "y".to_owned() => Set(btreeset! { SetElement::Number(3), SetElement::Number(4), SetElement::Number(5) }),
+            "z".to_owned() => Set(btreeset! { SetElement::Number(9), SetElement::Number(10) }),
+        },
+    };
+
+    let strings_assignment = Assignment {
+        signature: signature.clone(),
+        interpretation: Interpretation {
+            functions: indexmap! {
+                "+".to_owned() => Function {
+                    name: "concatenate".to_owned(),
+                    arity: 2,
+                    function: |arguments| format!("{}{}", arguments[0], arguments[1]),
+                },
+                "−".to_owned() => Function {
+                    name: "reversed".to_owned(),
+                    arity: 1,
+                    function: |arguments| arguments[0].chars().rev().collect(),
+                },
+                "∗".to_owned() => Function {
+                    name: "interleave".to_owned(),
+                    arity: 2,
+                    function: |arguments| {
+                        let n = arguments[0].len().max(arguments[1].len());
+
+                        (0..n)
+                            .map(|i| {
+                                format!(
+                                    "{}{}",
+                                    arguments[0].chars().nth(i).map(|c| c.to_string()).unwrap_or(String::new()),
+                                    arguments[1].chars().nth(i).map(|c| c.to_string()).unwrap_or(String::new()),
+                                )
+                            })
+                            .collect::<String>()
+                    },
+                },
+            },
+            constants: indexmap! {
+                "0".to_owned() => "0".to_owned(),
+                "1".to_owned() => "1".to_owned(),
+            },
+            predicates: indexmap! {
+                "=".to_owned() => Predicate {
+                    name: "=".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] == arguments[1],
+                },
+                "<".to_owned() => Predicate {
+                    name: "<".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] < arguments[1],
+                },
+                "≤".to_owned() => Predicate {
+                    name: "≤".to_owned(),
+                    arity: 2,
+                    predicate: |arguments| arguments[0] <= arguments[1],
+                },
+            },
+        },
+        variables: indexmap! {
+            "x".to_owned() => "first".to_owned(),
+            "y".to_owned() => "second".to_owned(),
+            "z".to_owned() => "third".to_owned(),
+        },
+    };
+
+    let mut explanation = Explanation::default();
+
+    println!("## a) Universe of natural numbers");
+
+    println!(
+        "- **Interpretation:** {}",
+        natural_numbers_assignment.interpretation
+    );
+
+    println!("- **Assignment:** {}", natural_numbers_assignment);
+
+    first_expression.evaluate(
+        &natural_numbers_assignment,
+        explanation.subexplanation("First expression"),
+    );
+
+    second_expression.evaluate(
+        &natural_numbers_assignment,
+        explanation.subexplanation("Second expression"),
+    );
+
+    third_expression.evaluate(
+        &natural_numbers_assignment,
+        explanation.subexplanation("Third expression"),
+    );
+
+    println!(
+        "- **Value under interpretation and variable assignment:**\n{}",
+        explanation.to_string()
+    );
+    let mut explanation = Explanation::default();
+
+    println!("## b) Universe of univariate polynomials over reals");
+
+    println!(
+        "- **Interpretation:** {}",
+        univariate_polynomials_over_reals_assignment.interpretation
+    );
+
+    println!(
+        "- **Assignment:** {}",
+        univariate_polynomials_over_reals_assignment
+    );
+
+    first_expression.evaluate(
+        &univariate_polynomials_over_reals_assignment,
+        explanation.subexplanation("First expression"),
+    );
+
+    second_expression.evaluate(
+        &univariate_polynomials_over_reals_assignment,
+        explanation.subexplanation("Second expression"),
+    );
+
+    third_expression.evaluate(
+        &univariate_polynomials_over_reals_assignment,
+        explanation.subexplanation("Third expression"),
+    );
+
+    println!(
+        "- **Value under interpretation and variable assignment:**\n{}",
+        explanation.to_string()
+    );
+
+    let mut explanation = Explanation::default();
+
+    println!("## c) Universe of sets");
+
+    println!("- **Interpretation:** {}", sets_assignment.interpretation);
+
+    println!("- **Assignment:** {}", sets_assignment);
+
+    first_expression.evaluate(
+        &sets_assignment,
+        explanation.subexplanation("First expression"),
+    );
+
+    second_expression.evaluate(
+        &sets_assignment,
+        explanation.subexplanation("Second expression"),
+    );
+
+    third_expression.evaluate(
+        &sets_assignment,
+        explanation.subexplanation("Third expression"),
+    );
+
+    println!(
+        "- **Value under interpretation and variable assignment:**\n{}",
+        explanation.to_string()
+    );
+
+    let mut explanation = Explanation::default();
+
+    println!("## d) Universe of strings");
+
+    println!(
+        "- **Interpretation:** {}",
+        strings_assignment.interpretation
+    );
+
+    println!("- **Assignment:** {}", strings_assignment);
+
+    first_expression.evaluate(
+        &strings_assignment,
+        explanation.subexplanation("First expression"),
+    );
+
+    second_expression.evaluate(
+        &strings_assignment,
+        explanation.subexplanation("Second expression"),
+    );
+
+    third_expression.evaluate(
+        &strings_assignment,
+        explanation.subexplanation("Third expression"),
+    );
+
+    println!(
+        "- **Value under interpretation and variable assignment:**\n{}",
+        explanation.to_string()
     );
 }
 
 fn main() {
-    // exercise_1();
+    exercise_1();
     exercise_2();
+    exercise_3();
+    exercise_4();
+    exercise_5();
 }

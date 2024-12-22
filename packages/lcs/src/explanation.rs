@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::mem;
 
 use enum_as_inner::EnumAsInner;
 use termtree::Tree;
@@ -50,6 +51,50 @@ impl Explanation {
     ) -> T {
         let explanation = self.subexplanation(description);
         function(explanation)
+    }
+
+    pub fn merge_subexplanations(&mut self, function: impl Fn(&[String]) -> String) {
+        let mut subexplanations = vec![];
+
+        for component in mem::take(&mut self.components) {
+            match component {
+                ExplanationComponent::Step(step) => self.step(step),
+                ExplanationComponent::Explanation(explanation) => {
+                    subexplanations.push(
+                        explanation
+                            .components
+                            .into_iter()
+                            .map(|component| match component {
+                                ExplanationComponent::Step(step) => step,
+                                ExplanationComponent::Explanation(_) => unimplemented!(),
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                }
+            }
+        }
+
+        for i in 0..subexplanations
+            .iter()
+            .map(|steps| steps.len())
+            .max()
+            .unwrap_or(0)
+        {
+            let merged = function(
+                subexplanations
+                    .iter()
+                    .map(|steps| {
+                        steps
+                            .get(i)
+                            .cloned()
+                            .unwrap_or_else(|| steps.last().cloned().unwrap_or(String::new()))
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            );
+
+            self.step(merged);
+        }
     }
 
     pub fn get_tree(&self) -> Tree<String> {

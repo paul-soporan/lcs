@@ -1,44 +1,107 @@
-use std::{fmt::Display, ops::Mul};
+use std::{
+    fmt::{format, Display},
+    ops::Mul,
+};
 
+use colored::Colorize;
 use indexmap::IndexMap;
 use itertools::Itertools;
 
+use crate::{explanation::Explanation, markdown::Markdown};
+
 use super::parser::{Signature, Term, Variable};
 
-#[derive(Debug, Clone, Default)]
-pub struct Substitution(pub IndexMap<Variable, Term>);
+#[derive(Debug, Clone)]
+pub struct Substitution {
+    pub name: String,
+    pub mapping: IndexMap<Variable, Term>,
+}
 
 impl Substitution {
-    pub fn without(&self, variable: &Variable) -> Substitution {
+    pub fn without(&self, variable: &Variable, signature: &Signature) -> Substitution {
         let mut new_substitution = self.clone();
-        new_substitution.0.shift_remove(variable);
+        new_substitution.mapping.shift_remove(variable);
+
+        if self.mapping.contains_key(variable) {
+            new_substitution.name = format!(
+                "{} ∖ {{{} ← {}}}",
+                self.name,
+                variable,
+                self.mapping[variable].to_relaxed_syntax(signature, None)
+            );
+        }
 
         new_substitution
     }
 
-    pub fn compose(&self, other: &Substitution) -> Substitution {
-        let mut new_substitution = Substitution::default();
+    pub fn compose(
+        &self,
+        other: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) -> Substitution {
+        let mut new_substitution = Substitution {
+            name: format!("{}{}", self.name, other.name),
+            mapping: IndexMap::new(),
+        };
 
-        for (variable, term) in &self.0 {
-            let new_term = term.with_substitution(other);
+        explanation.with_subexplanation("", |explanation| {
+            for (variable, term) in &self.mapping {
+                explanation.with_subexplanation("", |explanation| {
+                    let new_term =
+                        term.with_substitution(other, signature, explanation.subexplanation(""));
 
-            if new_term != Term::Variable(variable.clone()) {
-                new_substitution.0.insert(variable.clone(), new_term);
+                    explanation.merge_subexplanations(|subexplanations| {
+                        format!("{} ← {}", variable, subexplanations[0])
+                    });
+
+                    if new_term != Term::Variable(variable.clone()) {
+                        new_substitution.mapping.insert(variable.clone(), new_term);
+                    }
+                });
             }
-        }
 
-        for (variable, term) in &other.0 {
-            if !self.0.contains_key(variable) {
-                new_substitution.0.insert(variable.clone(), term.clone());
+            explanation.merge_subexplanations(|subexplanations| {
+                format!("{{{}}}", subexplanations.join(", "))
+            });
+        });
+
+        explanation.with_subexplanation("", |explanation| {
+            for (variable, term) in &other.mapping {
+                if !self.mapping.contains_key(variable) {
+                    explanation.with_subexplanation("", |explanation| {
+                        explanation.step(format!(
+                            "{} ← {}",
+                            variable,
+                            term.to_relaxed_syntax(signature, None)
+                        ));
+
+                        new_substitution
+                            .mapping
+                            .insert(variable.clone(), term.clone());
+                    });
+                }
             }
-        }
+
+            explanation.merge_subexplanations(|subexplanations| {
+                format!("{{{}}}", subexplanations.join(", "))
+            });
+        });
+
+        explanation.merge_subexplanations(|subexplanations| {
+            format!(
+                "{} = {}",
+                new_substitution.name.magenta().markdown(),
+                subexplanations.join(" ∪ ")
+            )
+        });
 
         new_substitution
     }
 
     pub fn to_relaxed_syntax(&self, signature: &Signature) -> String {
-        let mut components = self.0.iter().map(|(variable, term)| {
-            format!("{}←{}", variable, term.to_relaxed_syntax(signature, None))
+        let mut components = self.mapping.iter().map(|(variable, term)| {
+            format!("{} ← {}", variable, term.to_relaxed_syntax(signature, None))
         });
 
         format!("{{{}}}", components.join(", "))
@@ -48,42 +111,42 @@ impl Substitution {
 impl Display for Substitution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut components = self
-            .0
+            .mapping
             .iter()
-            .map(|(variable, term)| format!("{}←{}", variable, term));
+            .map(|(variable, term)| format!("{} ← {}", variable, term));
 
         write!(f, "{{{}}}", components.join(", "))
     }
 }
 
-impl Mul for Substitution {
-    type Output = Substitution;
+// impl Mul for Substitution {
+//     type Output = Substitution;
 
-    fn mul(self, other: Substitution) -> Substitution {
-        self.compose(&other)
-    }
-}
+//     fn mul(self, other: Substitution) -> Substitution {
+//         self.compose(&other)
+//     }
+// }
 
-impl Mul for &Substitution {
-    type Output = Substitution;
+// impl Mul for &Substitution {
+//     type Output = Substitution;
 
-    fn mul(self, other: &Substitution) -> Substitution {
-        self.compose(&other)
-    }
-}
+//     fn mul(self, other: &Substitution) -> Substitution {
+//         self.compose(&other)
+//     }
+// }
 
-impl Mul<&Substitution> for Substitution {
-    type Output = Substitution;
+// impl Mul<&Substitution> for Substitution {
+//     type Output = Substitution;
 
-    fn mul(self, other: &Substitution) -> Substitution {
-        self.compose(other)
-    }
-}
+//     fn mul(self, other: &Substitution) -> Substitution {
+//         self.compose(other)
+//     }
+// }
 
-impl Mul<Substitution> for &Substitution {
-    type Output = Substitution;
+// impl Mul<Substitution> for &Substitution {
+//     type Output = Substitution;
 
-    fn mul(self, other: Substitution) -> Substitution {
-        self.compose(&other)
-    }
-}
+//     fn mul(self, other: Substitution) -> Substitution {
+//         self.compose(&other)
+//     }
+// }
