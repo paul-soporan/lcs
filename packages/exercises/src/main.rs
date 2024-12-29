@@ -4,15 +4,18 @@ use std::ops::{Add, Mul};
 
 use as_variant::as_variant;
 use colored::Colorize;
-use indexmap::indexmap;
+use indexmap::{indexmap, indexset};
 use itertools::Itertools;
+use lcs::ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition};
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
+use lcs::parser::parse_proposition;
 use lcs::predicate_logic::evaluate::{Assignment, Function, Interpretation, Predicate};
 use lcs::predicate_logic::parser::{
-    parse_expression, parse_substitution, Associativity, Expression, FunctionSymbol,
+    parse_expression, parse_substitution, Associativity, Expression, Formula, FunctionSymbol,
     PredicateSymbol, Signature, Term,
 };
+use lcs::predicate_logic::prove::ProofSituation;
 use lcs::predicate_logic::substitution::Substitution;
 use maplit::btreeset;
 
@@ -862,10 +865,162 @@ fn exercise_5() {
     );
 }
 
+fn exercise_6() {
+    let mut explanation = Explanation::default();
+
+    let signature = Signature {
+        functions: indexmap! {
+            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+        },
+        predicates: indexmap! {
+            "≺".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+        },
+        is_constant: |_| false,
+    };
+
+    let transitivity = as_variant!(
+        parse_expression(
+            "∀x∀y∀z(x ≺ y ∧ y ≺ z ⇒ x ≺ z)",
+            &signature,
+            &mut explanation,
+        )
+        .unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let irreflexivity = as_variant!(
+        parse_expression("∀x¬(x ≺ x)", &signature, &mut explanation).unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let asymmetry = as_variant!(
+        parse_expression("∀x∀y(x ≺ y ⇒ ¬(y ≺ x))", &signature, &mut explanation).unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let double_transitivity = as_variant!(
+        parse_expression(
+            "∀x∀y∀z∀u(x ≺ y ∧ x ≺ z ∧ y ≺ u ⇒ z ≺ u)",
+            &signature,
+            &mut explanation,
+        )
+        .unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let symmetry = as_variant!(
+        parse_expression("∀x∀y(x ≺ y ⇒ y ≺ x)", &signature, &mut explanation).unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    let reflexivity = as_variant!(
+        parse_expression("∀x(x ≺ x)", &signature, &mut explanation).unwrap(),
+        Expression::Formula
+    )
+    .unwrap();
+
+    // let proof_situation = ProofSituation {
+    //     knowledge_base: indexset![transitivity, asymmetry],
+    //     goal: Some(irreflexivity),
+    // };
+
+    let proof_situation = ProofSituation {
+        knowledge_base: indexset![transitivity, symmetry, reflexivity],
+        goal: Some(double_transitivity),
+    };
+
+    proof_situation.prove(&signature);
+}
+
+fn exercise_7() {
+    let mut explanation = Explanation::default();
+
+    let signature = Signature {
+        functions: indexmap! {
+            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+        },
+        predicates: indexmap! {
+            "≺".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+        },
+        is_constant: |_| false,
+    };
+
+    let parts = ["A ∧ W ⇒ P", "¬A ⇒ I", "¬W ⇒ M", "¬P", "E ⇒ ¬(I ∨ M)"];
+
+    let premises = parts
+        .map(|part| parse_proposition(part).value.unwrap())
+        .map(|proposition| proposition_to_formula(proposition));
+
+    let proof_situation = ProofSituation {
+        knowledge_base: premises.into_iter().collect(),
+        goal: Some(proposition_to_formula(
+            parse_proposition("¬E").value.unwrap(),
+        )),
+    };
+
+    proof_situation.prove(&signature);
+}
+
 fn main() {
-    exercise_1();
-    exercise_2();
-    exercise_3();
-    exercise_4();
-    exercise_5();
+    // exercise_1();
+    // exercise_2();
+    // exercise_3();
+    // exercise_4();
+    // exercise_5();
+    exercise_7();
+}
+
+fn proposition_to_formula(proposition: Proposition) -> Formula {
+    match proposition {
+        Proposition::Atomic(variable) => Formula::PredicateApplication {
+            predicate: variable.0,
+            arguments: vec![],
+        },
+        Proposition::Compound(p) => match *p {
+            CompoundProposition::UnaryOperation {
+                operation,
+                proposition,
+            } => Formula::Negation(Box::new(proposition_to_formula(proposition))),
+            CompoundProposition::BinaryOperation {
+                operation,
+                left,
+                right,
+            } => match operation {
+                BinaryOperation::Implication => Formula::Implication(
+                    Box::new(proposition_to_formula(left)),
+                    Box::new(proposition_to_formula(right)),
+                ),
+                BinaryOperation::Equivalence => Formula::Equivalence(
+                    Box::new(proposition_to_formula(left)),
+                    Box::new(proposition_to_formula(right)),
+                ),
+            },
+            CompoundProposition::NaryOperation {
+                operation,
+                propositions,
+            } => {
+                let formulas = propositions
+                    .into_iter()
+                    .map(proposition_to_formula)
+                    .collect_vec();
+
+                match operation {
+                    NaryOperation::Conjunction => Formula::Conjunction(
+                        Box::new(formulas[0].clone()),
+                        Box::new(formulas[1].clone()),
+                    ),
+                    NaryOperation::Disjunction => Formula::Disjunction(
+                        Box::new(formulas[0].clone()),
+                        Box::new(formulas[1].clone()),
+                    ),
+                }
+            }
+        },
+        _ => unimplemented!(),
+    }
 }

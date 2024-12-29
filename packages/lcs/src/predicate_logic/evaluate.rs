@@ -2,13 +2,8 @@ use std::fmt::Display;
 
 use colored::Colorize;
 use indexmap::IndexMap;
-use itertools::Itertools;
 
-use crate::{
-    evaluate::TruthValue,
-    explanation::{self, Explanation},
-    markdown::Markdown,
-};
+use crate::{evaluate::TruthValue, explanation::Explanation, markdown::Markdown};
 
 use super::parser::{Formula, Signature, Term};
 

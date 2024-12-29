@@ -97,7 +97,7 @@ impl ExpressionSymbols {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Term {
     Variable(Variable),
     Constant(Constant),
@@ -323,7 +323,7 @@ impl Display for Term {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Formula {
     PredicateApplication {
         predicate: String,
@@ -431,6 +431,17 @@ impl Formula {
         }
 
         explanation.step(self.to_relaxed_syntax(&signature, None).green().markdown());
+    }
+
+    pub fn with_substitution(
+        &self,
+        substitution: &Substitution,
+        signature: &Signature,
+        explanation: &mut Explanation,
+    ) -> Formula {
+        let mut cloned = self.clone();
+        cloned.apply_substitution(substitution, signature, explanation);
+        cloned
     }
 
     pub fn is_substitutable(
@@ -729,11 +740,15 @@ impl Display for Formula {
                 predicate,
                 arguments,
             } => {
-                write!(
-                    f,
-                    "{predicate}({})",
-                    arguments.iter().map(|a| a.to_string()).join(", ")
-                )
+                if arguments.is_empty() {
+                    write!(f, "{}", predicate)
+                } else {
+                    write!(
+                        f,
+                        "{predicate}({})",
+                        arguments.iter().map(|a| a.to_string()).join(", ")
+                    )
+                }
             }
             Formula::Negation(formula) => write!(f, "¬{}", formula),
             Formula::Conjunction(left, right) => write!(f, "({} ∧ {})", left, right),

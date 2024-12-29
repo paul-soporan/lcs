@@ -1,7 +1,4 @@
-use std::{
-    fmt::{format, Display},
-    ops::Mul,
-};
+use std::fmt::Display;
 
 use colored::Colorize;
 use indexmap::IndexMap;
@@ -18,6 +15,13 @@ pub struct Substitution {
 }
 
 impl Substitution {
+    pub fn single(variable: Variable, term: Term) -> Substitution {
+        Substitution {
+            name: format!("{{{}}} ← {}", variable, term),
+            mapping: [(variable, term)].iter().cloned().collect(),
+        }
+    }
+
     pub fn without(&self, variable: &Variable, signature: &Signature) -> Substitution {
         let mut new_substitution = self.clone();
         new_substitution.mapping.shift_remove(variable);
