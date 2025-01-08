@@ -117,7 +117,7 @@ impl Explanation {
 
 impl Display for Explanation {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "<pre>")?;
+        write!(f, "\n<pre>")?;
         write!(f, "{}", self.get_tree())?;
         writeln!(f, "</pre>")
     }

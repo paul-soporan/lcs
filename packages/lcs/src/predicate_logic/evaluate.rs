@@ -145,6 +145,8 @@ impl Formula {
         ));
 
         let result = match self {
+            Formula::Tautology => TruthValue(true),
+            Formula::Contradiction => TruthValue(false),
             Formula::PredicateApplication {
                 predicate,
                 arguments,

@@ -51,8 +51,18 @@ pub struct PredicateSymbol {
 pub struct Signature {
     pub functions: IndexMap<String, FunctionSymbol>,
     pub predicates: IndexMap<String, PredicateSymbol>,
-    #[debug(skip)]
     pub is_constant: fn(&str) -> bool,
+}
+
+// TODO: Don't do this.
+impl Default for Signature {
+    fn default() -> Self {
+        Self {
+            functions: IndexMap::new(),
+            predicates: IndexMap::new(),
+            is_constant: |_| false,
+        }
+    }
 }
 
 impl Signature {
@@ -329,6 +339,8 @@ pub enum Formula {
         predicate: String,
         arguments: Vec<Term>,
     },
+    Tautology,
+    Contradiction,
     Negation(Box<Formula>),
     Conjunction(Box<Formula>, Box<Formula>),
     Disjunction(Box<Formula>, Box<Formula>),
@@ -352,6 +364,7 @@ impl Formula {
         ));
 
         match self {
+            Formula::Tautology | Formula::Contradiction => {}
             Formula::PredicateApplication {
                 predicate,
                 arguments,
@@ -459,6 +472,10 @@ impl Formula {
         ));
 
         match self {
+            Formula::Tautology | Formula::Contradiction => {
+                explanation.step("Tautology/contradiction -> substitutable".to_owned());
+                true
+            }
             Formula::PredicateApplication { .. } => {
                 explanation.step("Predicate application -> substitutable".to_owned());
                 true
@@ -519,11 +536,15 @@ impl Formula {
 
     pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
         match self {
+            Formula::Tautology => "⊤".to_owned(),
+            Formula::Contradiction => "⊥".to_owned(),
             Formula::PredicateApplication {
                 predicate,
                 arguments,
             } => {
-                if arguments.len() == 2 && signature.predicates[predicate].infix {
+                if arguments.is_empty() {
+                    predicate.clone()
+                } else if arguments.len() == 2 && signature.predicates[predicate].infix {
                     let expression = format!(
                         "{} {predicate} {}",
                         arguments[0].to_relaxed_syntax(signature, Some(predicate)),
@@ -535,6 +556,10 @@ impl Formula {
                             if parent_symbol.arities.iter().any(|arity| *arity > 2) {
                                 return format!("({})", expression);
                             }
+                        }
+
+                        if parent == "¬" {
+                            return format!("({})", expression);
                         }
                     }
 
@@ -550,17 +575,33 @@ impl Formula {
                     )
                 }
             }
-            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(signature, None)),
-            Formula::Conjunction(left, right) => format!(
-                "{} ∧ {}",
-                left.to_relaxed_syntax(signature, Some("∧")),
-                right.to_relaxed_syntax(signature, Some("∧"))
-            ),
-            Formula::Disjunction(left, right) => format!(
-                "{} ∨ {}",
-                left.to_relaxed_syntax(signature, Some("∨")),
-                right.to_relaxed_syntax(signature, Some("∨"))
-            ),
+            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(signature, Some("¬"))),
+            Formula::Conjunction(left, right) => {
+                let conjunction = format!(
+                    "{} ∧ {}",
+                    left.to_relaxed_syntax(signature, Some("∧")),
+                    right.to_relaxed_syntax(signature, Some("∧"))
+                );
+
+                if parent == Some("¬") {
+                    format!("({})", conjunction)
+                } else {
+                    conjunction
+                }
+            }
+            Formula::Disjunction(left, right) => {
+                let disjunction = format!(
+                    "{} ∨ {}",
+                    left.to_relaxed_syntax(signature, Some("∨")),
+                    right.to_relaxed_syntax(signature, Some("∨"))
+                );
+
+                if parent == Some("¬") {
+                    format!("({})", disjunction)
+                } else {
+                    disjunction
+                }
+            }
             Formula::Implication(left, right) => format!(
                 "{} ⇒ {}",
                 left.to_relaxed_syntax(signature, Some("⇒")),
@@ -590,6 +631,7 @@ impl Formula {
 
     pub fn relabel_variable(&mut self, old: &str, new: &str) {
         match self {
+            Formula::Tautology | Formula::Contradiction => {}
             Formula::PredicateApplication { arguments, .. } => {
                 for argument in arguments {
                     argument.relabel_variable(old, new);
@@ -623,6 +665,7 @@ impl Formula {
         let mut symbols = ExpressionSymbols::default();
 
         match self {
+            Formula::Tautology | Formula::Contradiction => {}
             Formula::PredicateApplication {
                 predicate,
                 arguments,
@@ -731,11 +774,23 @@ impl Formula {
 
         symbols
     }
+
+    pub fn get_free_root_variables(&self) -> BTreeSet<Variable> {
+        let mut variables_by_scope = BTreeMap::new();
+        self.get_symbols("", &mut variables_by_scope);
+
+        variables_by_scope
+            .get("")
+            .map(|variables| variables.keys().cloned().collect())
+            .unwrap_or_default()
+    }
 }
 
 impl Display for Formula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Formula::Tautology => write!(f, "⊤"),
+            Formula::Contradiction => write!(f, "⊥"),
             Formula::PredicateApplication {
                 predicate,
                 arguments,
