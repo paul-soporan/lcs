@@ -858,20 +858,17 @@ fn get_common_math_signature() -> Signature {
 //     );
 // }
 
-fn write_proof(proof: &Proof, signature: &Signature, labels: &IndexMap<Formula, String>) {
+fn write_proof(proof: &Proof, labels: &IndexMap<Formula, String>) {
     let (trimmed_proof, _) = proof.trim();
-    println!(
-        "- **Proof:**\n{}",
-        trimmed_proof.describe(&signature, labels)
-    );
+    println!("- **Proof:**\n{}", trimmed_proof.describe(labels));
 
     let explanation = &mut Explanation::default();
-    proof.explain(explanation, &signature);
+    proof.explain(explanation);
     println!("- **Original proof tree**:\n{}", explanation.to_string());
 
     if trimmed_proof != *proof {
         let explanation = &mut Explanation::default();
-        trimmed_proof.explain(explanation, &signature);
+        trimmed_proof.explain(explanation);
         println!("- **Trimmed proof tree**:\n{}", explanation.to_string());
     } else {
         println!(
@@ -932,9 +929,9 @@ fn exercise_1() {
         goal: irreflexivity,
     };
 
-    let proof = proof_situation.build_proof(&signature);
+    let proof = proof_situation.build_proof();
 
-    write_proof(&proof, &signature, &labels);
+    write_proof(&proof, &labels);
 
     println!("## b)");
     println!(
@@ -1007,9 +1004,9 @@ fn exercise_2() {
         goal: double_transitivity,
     };
 
-    let proof = proof_situation.build_proof(&signature);
+    let proof = proof_situation.build_proof();
 
-    write_proof(&proof, &signature, &labels);
+    write_proof(&proof, &labels);
 
     println!("## b)");
     println!("- Predicates satisfying **(transitivity)**, **(symmetry)**, **(reflexivity)**, and therefore **(double transitivity)**:");
@@ -1043,9 +1040,9 @@ fn exercise_3() {
         goal: proposition_to_formula(parse_proposition("¬E").value.unwrap()),
     };
 
-    let proof = proof_situation.build_proof(&signature);
+    let proof = proof_situation.build_proof();
 
-    write_proof(&proof, &signature, &indexmap! {});
+    write_proof(&proof, &indexmap! {});
 }
 
 fn main() {
@@ -1059,6 +1056,10 @@ fn proposition_to_formula(proposition: Proposition) -> Formula {
         Proposition::Atomic(variable) => Formula::PredicateApplication {
             predicate: variable.0,
             arguments: vec![],
+            symbol: PredicateSymbol {
+                arities: vec![0],
+                infix: false,
+            },
         },
         Proposition::Compound(p) => match *p {
             CompoundProposition::UnaryOperation {

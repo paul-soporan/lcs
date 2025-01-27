@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::{explanation::Explanation, markdown::Markdown};
 
 use super::{
-    parser::{Formula, Signature, Term, Variable},
+    parser::{Formula, Term, Variable},
     substitution::Substitution,
 };
 
@@ -167,11 +167,7 @@ impl Proof {
         }
     }
 
-    pub fn describe(
-        &self,
-        signature: &Signature,
-        formula_labels: &IndexMap<Formula, String>,
-    ) -> String {
+    pub fn describe(&self, formula_labels: &IndexMap<Formula, String>) -> String {
         let mut formula_labels = formula_labels.clone();
 
         let mut description = "We know the following:".to_owned();
@@ -201,10 +197,7 @@ impl Proof {
         let labeled_formula = |formula: &Formula, labels: &IndexMap<Formula, String>| {
             format!(
                 "\n    {}    {}",
-                formula
-                    .to_relaxed_syntax(signature, None)
-                    .green()
-                    .markdown(),
+                formula.to_relaxed_syntax(None).green().markdown(),
                 pretty_label(&labels[formula], true)
             )
         };
@@ -291,7 +284,6 @@ impl Proof {
                 &mut IndexMap<Formula, String>,
             ) -> String,
             labels: &mut IndexMap<Formula, String>,
-            signature: &Signature,
         ) -> String {
             let mut description = String::new();
 
@@ -300,41 +292,24 @@ impl Proof {
 
                 match &step.node {
                     ProofNode::Proof(proof) => {
-                        description +=
-                            &describe_proof(proof, 0, interpolate_values, labels, signature);
+                        description += &describe_proof(proof, 0, interpolate_values, labels);
                     }
                     ProofNode::Case(left, right) => {
                         description.push_str(&format!(
                             "Case {} {}:\n",
-                            step.outputs[0]
-                                .to_relaxed_syntax(signature, None)
-                                .green()
-                                .markdown(),
+                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
                             pretty_label(&labels[&step.outputs[0]], true)
                         ));
-                        description += &describe_proof(
-                            left,
-                            indent + 2,
-                            interpolate_values,
-                            labels,
-                            signature,
-                        );
+                        description +=
+                            &describe_proof(left, indent + 2, interpolate_values, labels);
 
                         description.push_str(&format!(
                             "Case {} {}:\n",
-                            step.outputs[1]
-                                .to_relaxed_syntax(signature, None)
-                                .green()
-                                .markdown(),
+                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
                             pretty_label(&labels[&step.outputs[1]], true)
                         ));
-                        description += &describe_proof(
-                            right,
-                            indent + 2,
-                            interpolate_values,
-                            labels,
-                            signature,
-                        );
+                        description +=
+                            &describe_proof(right, indent + 2, interpolate_values, labels);
 
                         if left.result == ProofResult::Contradiction
                             && right.result == ProofResult::Contradiction
@@ -360,27 +335,16 @@ impl Proof {
                 .join("\n")
         }
 
-        description += &describe_proof(
-            self,
-            0,
-            &mut interpolate_values,
-            &mut formula_labels,
-            &signature,
-        );
+        description += &describe_proof(self, 0, &mut interpolate_values, &mut formula_labels);
 
         format!("\n<pre>{}</pre>", description)
     }
 
-    pub fn explain(&self, explanation: &mut Explanation, signature: &Signature) {
+    pub fn explain(&self, explanation: &mut Explanation) {
         explanation.with_subexplanation("Proof situation", |explanation| {
             explanation.with_subexplanation("Knowledge Base", |explanation| {
                 for formula in &self.situation.knowledge_base {
-                    explanation.step(
-                        formula
-                            .to_relaxed_syntax(signature, None)
-                            .magenta()
-                            .markdown(),
-                    );
+                    explanation.step(formula.to_relaxed_syntax(None).magenta().markdown());
                 }
             });
 
@@ -389,7 +353,7 @@ impl Proof {
                     "⊢ {}",
                     self.situation
                         .goal
-                        .to_relaxed_syntax(signature, None)
+                        .to_relaxed_syntax(None)
                         .green()
                         .markdown()
                 ));
@@ -411,22 +375,12 @@ impl Proof {
 
                 explanation.with_subexplanation("Inputs", |explanation| {
                     for formula in &next_step.inputs {
-                        explanation.step(
-                            formula
-                                .to_relaxed_syntax(signature, None)
-                                .magenta()
-                                .markdown(),
-                        );
+                        explanation.step(formula.to_relaxed_syntax(None).magenta().markdown());
                     }
                 });
                 explanation.with_subexplanation("Outputs", |explanation| {
                     for formula in &next_step.outputs {
-                        explanation.step(
-                            formula
-                                .to_relaxed_syntax(signature, None)
-                                .green()
-                                .markdown(),
-                        );
+                        explanation.step(formula.to_relaxed_syntax(None).green().markdown());
                     }
                 });
 
@@ -442,24 +396,24 @@ impl Proof {
                         ));
                     }
                     ProofNode::Proof(next_proof) => {
-                        next_proof.explain(explanation, signature);
+                        next_proof.explain(explanation);
                     }
                     ProofNode::And(left_proof, right_proof) => {
                         explanation.with_subexplanation("And node", |explanation| {
-                            left_proof.explain(explanation, signature);
-                            right_proof.explain(explanation, signature);
+                            left_proof.explain(explanation);
+                            right_proof.explain(explanation);
                         })
                     }
                     ProofNode::Or(left_proof, right_proof) => {
                         explanation.with_subexplanation("Or node", |explanation| {
-                            left_proof.explain(explanation, signature);
-                            right_proof.explain(explanation, signature);
+                            left_proof.explain(explanation);
+                            right_proof.explain(explanation);
                         })
                     }
                     ProofNode::Case(left_proof, right_proof) => {
                         explanation.with_subexplanation("Case node", |explanation| {
-                            left_proof.explain(explanation, signature);
-                            right_proof.explain(explanation, signature);
+                            left_proof.explain(explanation);
+                            right_proof.explain(explanation);
                         })
                     }
                 }
@@ -490,7 +444,7 @@ fn is_formula_simpler(left: &Formula, right: &Formula) -> bool {
 }
 
 impl ProofSituation {
-    pub fn use_local(&self, _: &Signature) -> Option<ProofStep> {
+    pub fn use_local(&self) -> Option<ProofStep> {
         if self.knowledge_base.contains(&self.goal) {
             return Some(ProofStep {
                 rule: "local".to_string(),
@@ -505,7 +459,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_contradiction(&self, _: &Signature) -> Option<ProofStep> {
+    pub fn use_contradiction(&self) -> Option<ProofStep> {
         for (formula_index, formula) in self.knowledge_base.iter().enumerate() {
             let negated = negated_formula(formula);
             let negated_index = self.knowledge_base.get_index_of(&negated);
@@ -529,8 +483,8 @@ impl ProofSituation {
         None
     }
 
-    pub fn build_proof(&self, signature: &Signature) -> Proof {
-        match self.apply_rules(signature) {
+    pub fn build_proof(&self) -> Proof {
+        match self.apply_rules() {
             Some(step) => {
                 if let ProofNode::Proof(proof) = &step.node
                     && proof.situation == *self
@@ -552,34 +506,34 @@ impl ProofSituation {
         }
     }
 
-    pub fn apply_rules(&self, signature: &Signature) -> Option<ProofStep> {
-        self.use_local(signature)
-            .or_else(|| self.use_contradiction(signature))
-            .or_else(|| self.simplify_goal(signature))
-            .or_else(|| self.use_suffices_to_prove(signature))
-            .or_else(|| self.use_modus_ponens(signature))
-            .or_else(|| self.use_conjunction(signature))
-            .or_else(|| self.use_negation(signature))
-            .or_else(|| self.use_cases(signature))
-            .or_else(|| self.use_universal_quantifier(signature))
-            .or_else(|| self.proof_by_contradiction(signature))
-            .or_else(|| self.use_contrapositive(signature))
-            .or_else(|| self.reduce_implication(signature))
+    pub fn apply_rules(&self) -> Option<ProofStep> {
+        self.use_local()
+            .or_else(|| self.use_contradiction())
+            .or_else(|| self.simplify_goal())
+            .or_else(|| self.use_suffices_to_prove())
+            .or_else(|| self.use_modus_ponens())
+            .or_else(|| self.use_conjunction())
+            .or_else(|| self.use_negation())
+            .or_else(|| self.use_cases())
+            .or_else(|| self.use_universal_quantifier())
+            .or_else(|| self.proof_by_contradiction())
+            .or_else(|| self.use_contrapositive())
+            .or_else(|| self.reduce_implication())
     }
 
-    pub fn simplify_goal(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn simplify_goal(&self) -> Option<ProofStep> {
         match &self.goal {
             Formula::Conjunction(box left, box right) => {
                 let left_proof = ProofSituation {
                     knowledge_base: self.knowledge_base.clone(),
                     goal: left.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
                 let right_proof = ProofSituation {
                     knowledge_base: self.knowledge_base.clone(),
                     goal: right.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
 
                 return Some(ProofStep {
                     rule: "⊢ ∧".to_string(),
@@ -602,12 +556,12 @@ impl ProofSituation {
                     knowledge_base: self.knowledge_base.clone(),
                     goal: left.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
                 let right_proof = ProofSituation {
                     knowledge_base: self.knowledge_base.clone(),
                     goal: right.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
 
                 return Some(ProofStep {
                     rule: "⊢ ∨".to_string(),
@@ -633,7 +587,7 @@ impl ProofSituation {
                     knowledge_base,
                     goal: conclusion.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
 
                 return Some(ProofStep {
                     rule: "⊢⇒".to_string(),
@@ -653,7 +607,6 @@ impl ProofSituation {
                         variable.clone(),
                         Term::Variable(Variable(arbitrary_variable_name.clone())),
                     ),
-                    signature,
                     &mut Explanation::default(),
                 );
 
@@ -661,7 +614,7 @@ impl ProofSituation {
                     knowledge_base: self.knowledge_base.clone(),
                     goal: next_goal.clone(),
                 }
-                .build_proof(signature);
+                .build_proof();
 
                 return Some(ProofStep {
                     rule: "⊢ ∀".to_string(),
@@ -683,7 +636,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn reduce_implication(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn reduce_implication(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(hypothesis, conclusion) => {
@@ -700,7 +653,7 @@ impl ProofSituation {
                             knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "⊢⇒ ⊢".to_string(),
@@ -720,7 +673,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_suffices_to_prove(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_suffices_to_prove(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -732,7 +685,7 @@ impl ProofSituation {
                             knowledge_base,
                             goal: hypothesis.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "⇒⊢".to_string(),
@@ -754,7 +707,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_universal_quantifier(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_universal_quantifier(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::UniversalQuantification(variable, box subformula) => {
@@ -772,7 +725,6 @@ impl ProofSituation {
                     for free_variable in free_variables {
                         let next_formula = subformula.with_substitution(
                             &Substitution::single(variable.clone(), Term::Variable(free_variable)),
-                            signature,
                             &mut Explanation::default(),
                         );
 
@@ -786,7 +738,7 @@ impl ProofSituation {
                             knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "∀ ⊢".to_string(),
@@ -807,7 +759,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_contrapositive(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_contrapositive(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -827,7 +779,7 @@ impl ProofSituation {
                             knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "contrapositive".to_string(),
@@ -848,7 +800,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_cases(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_cases(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Disjunction(box left, box right) => {
@@ -863,7 +815,7 @@ impl ProofSituation {
                             knowledge_base: left_knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         let mut right_knowledge_base = knowledge_base.clone();
                         right_knowledge_base.insert(right.clone());
@@ -872,7 +824,7 @@ impl ProofSituation {
                             knowledge_base: right_knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "∨ ⊢".to_string(),
@@ -900,7 +852,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_modus_ponens(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_modus_ponens(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -913,7 +865,7 @@ impl ProofSituation {
                                 knowledge_base,
                                 goal: self.goal.clone(),
                             }
-                            .build_proof(signature);
+                            .build_proof();
 
                             return Some(ProofStep {
                                 rule: "modus ponens".to_string(),
@@ -938,7 +890,7 @@ impl ProofSituation {
                                         knowledge_base,
                                         goal: self.goal.clone(),
                                     }
-                                    .build_proof(signature);
+                                    .build_proof();
 
                                     return Some(ProofStep {
                                         rule: "modus ponens preparation".to_string(),
@@ -963,7 +915,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_conjunction(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_conjunction(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Conjunction(box left, box right) => {
@@ -976,7 +928,7 @@ impl ProofSituation {
                             knowledge_base,
                             goal: self.goal.clone(),
                         }
-                        .build_proof(signature);
+                        .build_proof();
 
                         return Some(ProofStep {
                             rule: "∧ ⊢".to_string(),
@@ -996,7 +948,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_negation(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn use_negation(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Negation(box negated_formula) => match negated_formula {
@@ -1009,7 +961,7 @@ impl ProofSituation {
                                 knowledge_base,
                                 goal: self.goal.clone(),
                             }
-                            .build_proof(signature);
+                            .build_proof();
 
                             return Some(ProofStep {
                                 rule: "¬¬ ⊢".to_string(),
@@ -1038,7 +990,7 @@ impl ProofSituation {
                                 knowledge_base,
                                 goal: self.goal.clone(),
                             }
-                            .build_proof(signature);
+                            .build_proof();
 
                             return Some(ProofStep {
                                 rule: "¬∧ ⊢".to_string(),
@@ -1066,7 +1018,7 @@ impl ProofSituation {
                                 knowledge_base,
                                 goal: self.goal.clone(),
                             }
-                            .build_proof(signature);
+                            .build_proof();
 
                             return Some(ProofStep {
                                 rule: "¬∨ ⊢".to_string(),
@@ -1090,7 +1042,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn proof_by_contradiction(&self, signature: &Signature) -> Option<ProofStep> {
+    pub fn proof_by_contradiction(&self) -> Option<ProofStep> {
         if self.goal == Formula::Contradiction {
             return None;
         }
@@ -1104,7 +1056,7 @@ impl ProofSituation {
             knowledge_base,
             goal: Formula::Contradiction,
         }
-        .build_proof(signature);
+        .build_proof();
 
         Some(ProofStep {
             rule: "proof by contradiction".to_string(),

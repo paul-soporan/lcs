@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 
 use crate::{evaluate::TruthValue, explanation::Explanation, markdown::Markdown};
 
-use super::parser::{Formula, Signature, Term};
+use super::parser::{Formula, Term};
 
 #[derive(Debug)]
 pub struct Function<D> {
@@ -50,7 +50,6 @@ impl<D: Display> Display for Interpretation<D> {
 
 #[derive(Debug)]
 pub struct Assignment<D> {
-    pub signature: Signature,
     pub interpretation: Interpretation<D>,
     pub variables: IndexMap<String, D>,
 }
@@ -75,9 +74,7 @@ impl Term {
     ) -> D {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_relaxed_syntax(&assignment.signature, None)
-                .green()
-                .markdown()
+            self.to_relaxed_syntax(None).green().markdown()
         ));
 
         let result = match self {
@@ -94,6 +91,7 @@ impl Term {
             Term::FunctionApplication {
                 function,
                 arguments,
+                ..
             } => {
                 let function = explanation.with_subexplanation("", |explanation| {
                     explanation.step(format!("I({})", function.magenta().markdown()));
@@ -139,9 +137,7 @@ impl Formula {
     ) -> TruthValue {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_relaxed_syntax(&assignment.signature, None)
-                .green()
-                .markdown()
+            self.to_relaxed_syntax(None).green().markdown()
         ));
 
         let result = match self {
@@ -150,6 +146,7 @@ impl Formula {
             Formula::PredicateApplication {
                 predicate,
                 arguments,
+                ..
             } => {
                 let predicate = explanation.with_subexplanation("", |explanation| {
                     explanation.step(format!("I({})", predicate.magenta().markdown()));

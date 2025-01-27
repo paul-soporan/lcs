@@ -26,7 +26,7 @@ use crate::{explanation::Explanation, markdown::Markdown};
 
 use super::substitution::Substitution;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Associativity {
     None,
     Left,
@@ -34,14 +34,14 @@ pub enum Associativity {
     Full,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FunctionSymbol {
     pub arities: Vec<usize>,
     pub precedence: usize,
     pub associativity: Associativity,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PredicateSymbol {
     pub arities: Vec<usize>,
     pub infix: bool,
@@ -114,6 +114,7 @@ pub enum Term {
     FunctionApplication {
         function: String,
         arguments: Vec<Term>,
+        symbol: FunctionSymbol,
     },
 }
 
@@ -131,12 +132,11 @@ impl Term {
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        signature: &Signature,
         explanation: &mut Explanation,
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(&signature, None).red().markdown(),
+            self.to_relaxed_syntax(None).red().markdown(),
             substitution.name
         ));
 
@@ -150,13 +150,10 @@ impl Term {
             Term::FunctionApplication {
                 function,
                 arguments,
+                ..
             } => {
                 for argument in arguments {
-                    argument.apply_substitution(
-                        substitution,
-                        signature,
-                        explanation.subexplanation(""),
-                    );
+                    argument.apply_substitution(substitution, explanation.subexplanation(""));
                 }
 
                 explanation.merge_subexplanations(|subexplanations| {
@@ -165,17 +162,16 @@ impl Term {
             }
         };
 
-        explanation.step(self.to_relaxed_syntax(&signature, None).green().markdown());
+        explanation.step(self.to_relaxed_syntax(None).green().markdown());
     }
 
     pub fn with_substitution(
         &self,
         substitution: &Substitution,
-        signature: &Signature,
         explanation: &mut Explanation,
     ) -> Term {
         let mut cloned = self.clone();
-        cloned.apply_substitution(substitution, signature, explanation);
+        cloned.apply_substitution(substitution, explanation);
         cloned
     }
 
@@ -183,32 +179,29 @@ impl Term {
         true
     }
 
-    pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
+    pub fn to_relaxed_syntax(&self, parent: Option<&FunctionSymbol>) -> String {
         match self {
             Term::Variable(v) => v.to_string(),
             Term::Constant(c) => c.to_string(),
             Term::FunctionApplication {
                 function,
                 arguments,
+                symbol,
             } => {
                 if arguments.len() == 2 {
                     let expression = format!(
                         "{}{}{}",
-                        arguments[0].to_relaxed_syntax(signature, Some(function)),
+                        arguments[0].to_relaxed_syntax(Some(symbol)),
                         match function.as_str() {
                             "[][]" => String::new(),
                             _ => format!(" {} ", function),
                         },
-                        arguments[1].to_relaxed_syntax(signature, Some(function))
+                        arguments[1].to_relaxed_syntax(Some(symbol))
                     );
 
-                    if let Some(parent) = parent {
-                        if let Some(parent_symbol) = signature.functions.get(parent) {
-                            if parent_symbol.precedence
-                                > signature.functions.get(function).unwrap().precedence
-                            {
-                                return format!("({})", expression);
-                            }
+                    if let Some(parent_symbol) = parent {
+                        if parent_symbol.precedence > symbol.precedence {
+                            return format!("({})", expression);
                         }
                     }
 
@@ -219,7 +212,7 @@ impl Term {
                         function,
                         arguments
                             .iter()
-                            .map(|term| term.to_relaxed_syntax(signature, None))
+                            .map(|term| term.to_relaxed_syntax(None))
                             .join(", ")
                     )
                 }
@@ -299,6 +292,7 @@ impl Term {
             Term::FunctionApplication {
                 function,
                 arguments,
+                ..
             } => {
                 symbols
                     .functions
@@ -322,6 +316,7 @@ impl Display for Term {
             Term::FunctionApplication {
                 function,
                 arguments,
+                ..
             } => {
                 write!(
                     f,
@@ -338,6 +333,7 @@ pub enum Formula {
     PredicateApplication {
         predicate: String,
         arguments: Vec<Term>,
+        symbol: PredicateSymbol,
     },
     Tautology,
     Contradiction,
@@ -354,12 +350,11 @@ impl Formula {
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        signature: &Signature,
         explanation: &mut Explanation,
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(&signature, None).red().markdown(),
+            self.to_relaxed_syntax(None).red().markdown(),
             substitution.name
         ));
 
@@ -368,13 +363,10 @@ impl Formula {
             Formula::PredicateApplication {
                 predicate,
                 arguments,
+                ..
             } => {
                 for argument in arguments {
-                    argument.apply_substitution(
-                        substitution,
-                        signature,
-                        explanation.subexplanation(""),
-                    );
+                    argument.apply_substitution(substitution, explanation.subexplanation(""));
                 }
 
                 explanation.merge_subexplanations(|subexplanations| {
@@ -382,60 +374,52 @@ impl Formula {
                 });
             }
             Formula::Negation(f) => {
-                f.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                f.apply_substitution(substitution, explanation.subexplanation(""));
 
                 explanation
                     .merge_subexplanations(|subexplanations| format!("¬{}", subexplanations[0]));
             }
             Formula::Conjunction(left, right) => {
-                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
-                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(""));
+                right.apply_substitution(substitution, explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ∧ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Disjunction(left, right) => {
-                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
-                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(""));
+                right.apply_substitution(substitution, explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ∨ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Implication(left, right) => {
-                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
-                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(""));
+                right.apply_substitution(substitution, explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ⇒ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Equivalence(left, right) => {
-                left.apply_substitution(substitution, signature, explanation.subexplanation(""));
-                right.apply_substitution(substitution, signature, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(""));
+                right.apply_substitution(substitution, explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ⇔ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::UniversalQuantification(v, f) => {
-                f.apply_substitution(
-                    &substitution.without(v, signature),
-                    signature,
-                    explanation.subexplanation(""),
-                );
+                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("∀{}({})", v, subexplanations[0])
                 });
             }
             Formula::ExistentialQuantification(v, f) => {
-                f.apply_substitution(
-                    &substitution.without(v, signature),
-                    signature,
-                    explanation.subexplanation(""),
-                );
+                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("∃{}({})", v, subexplanations[0])
@@ -443,17 +427,16 @@ impl Formula {
             }
         }
 
-        explanation.step(self.to_relaxed_syntax(&signature, None).green().markdown());
+        explanation.step(self.to_relaxed_syntax(None).green().markdown());
     }
 
     pub fn with_substitution(
         &self,
         substitution: &Substitution,
-        signature: &Signature,
         explanation: &mut Explanation,
     ) -> Formula {
         let mut cloned = self.clone();
-        cloned.apply_substitution(substitution, signature, explanation);
+        cloned.apply_substitution(substitution, explanation);
         cloned
     }
 
@@ -466,9 +449,9 @@ impl Formula {
     ) -> bool {
         explanation.step(format!(
             "Checking if {} is substitutable for {} in {}",
-            term.to_relaxed_syntax(signature, None).red().markdown(),
+            term.to_relaxed_syntax(None).red().markdown(),
             variable.to_string().blue().markdown(),
-            self.to_relaxed_syntax(signature, None).green().markdown()
+            self.to_relaxed_syntax(None).green().markdown()
         ));
 
         match self {
@@ -534,29 +517,30 @@ impl Formula {
         }
     }
 
-    pub fn to_relaxed_syntax(&self, signature: &Signature, parent: Option<&str>) -> String {
+    pub fn to_relaxed_syntax(&self, parent: Option<&str>) -> String {
         match self {
             Formula::Tautology => "⊤".to_owned(),
             Formula::Contradiction => "⊥".to_owned(),
             Formula::PredicateApplication {
                 predicate,
                 arguments,
+                symbol,
             } => {
                 if arguments.is_empty() {
                     predicate.clone()
-                } else if arguments.len() == 2 && signature.predicates[predicate].infix {
+                } else if arguments.len() == 2 && symbol.infix {
                     let expression = format!(
                         "{} {predicate} {}",
-                        arguments[0].to_relaxed_syntax(signature, Some(predicate)),
-                        arguments[1].to_relaxed_syntax(signature, Some(predicate))
+                        arguments[0].to_relaxed_syntax(None),
+                        arguments[1].to_relaxed_syntax(None)
                     );
 
                     if let Some(parent) = parent {
-                        if let Some(parent_symbol) = signature.predicates.get(parent) {
-                            if parent_symbol.arities.iter().any(|arity| *arity > 2) {
-                                return format!("({})", expression);
-                            }
-                        }
+                        // if let Some(parent_symbol) = signature.predicates.get(parent) {
+                        //     if parent_symbol.arities.iter().any(|arity| *arity > 2) {
+                        //         return format!("({})", expression);
+                        //     }
+                        // }
 
                         if parent == "¬" {
                             return format!("({})", expression);
@@ -570,17 +554,17 @@ impl Formula {
                         predicate,
                         arguments
                             .iter()
-                            .map(|term| term.to_relaxed_syntax(signature, None))
+                            .map(|term| term.to_relaxed_syntax(None))
                             .join(", ")
                     )
                 }
             }
-            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(signature, Some("¬"))),
+            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(Some("¬"))),
             Formula::Conjunction(left, right) => {
                 let conjunction = format!(
                     "{} ∧ {}",
-                    left.to_relaxed_syntax(signature, Some("∧")),
-                    right.to_relaxed_syntax(signature, Some("∧"))
+                    left.to_relaxed_syntax(Some("∧")),
+                    right.to_relaxed_syntax(Some("∧"))
                 );
 
                 if parent == Some("¬") {
@@ -592,8 +576,8 @@ impl Formula {
             Formula::Disjunction(left, right) => {
                 let disjunction = format!(
                     "{} ∨ {}",
-                    left.to_relaxed_syntax(signature, Some("∨")),
-                    right.to_relaxed_syntax(signature, Some("∨"))
+                    left.to_relaxed_syntax(Some("∨")),
+                    right.to_relaxed_syntax(Some("∨"))
                 );
 
                 if parent == Some("¬") {
@@ -604,27 +588,19 @@ impl Formula {
             }
             Formula::Implication(left, right) => format!(
                 "{} ⇒ {}",
-                left.to_relaxed_syntax(signature, Some("⇒")),
-                right.to_relaxed_syntax(signature, Some("⇒"))
+                left.to_relaxed_syntax(Some("⇒")),
+                right.to_relaxed_syntax(Some("⇒"))
             ),
             Formula::Equivalence(left, right) => format!(
                 "{} ⇔ {}",
-                left.to_relaxed_syntax(signature, Some("⇔")),
-                right.to_relaxed_syntax(signature, Some("⇔"))
+                left.to_relaxed_syntax(Some("⇔")),
+                right.to_relaxed_syntax(Some("⇔"))
             ),
             Formula::UniversalQuantification(variable, formula) => {
-                format!(
-                    "∀{}({})",
-                    variable,
-                    formula.to_relaxed_syntax(signature, Some("∀"))
-                )
+                format!("∀{}({})", variable, formula.to_relaxed_syntax(Some("∀")))
             }
             Formula::ExistentialQuantification(variable, formula) => {
-                format!(
-                    "∃{}({})",
-                    variable,
-                    formula.to_relaxed_syntax(signature, Some("∃"))
-                )
+                format!("∃{}({})", variable, formula.to_relaxed_syntax(Some("∃")))
             }
         }
     }
@@ -669,6 +645,7 @@ impl Formula {
             Formula::PredicateApplication {
                 predicate,
                 arguments,
+                ..
             } => {
                 symbols
                     .predicates
@@ -794,6 +771,7 @@ impl Display for Formula {
             Formula::PredicateApplication {
                 predicate,
                 arguments,
+                ..
             } => {
                 if arguments.is_empty() {
                     write!(f, "{}", predicate)
@@ -827,24 +805,21 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn to_relaxed_syntax(&self, signature: &Signature) -> String {
+    pub fn to_relaxed_syntax(&self) -> String {
         match self {
-            Expression::Term(term) => term.to_relaxed_syntax(signature, None),
-            Expression::Formula(formula) => formula.to_relaxed_syntax(signature, None),
+            Expression::Term(term) => term.to_relaxed_syntax(None),
+            Expression::Formula(formula) => formula.to_relaxed_syntax(None),
         }
     }
 
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        signature: &Signature,
         explanation: &mut Explanation,
     ) {
         match self {
-            Expression::Term(term) => term.apply_substitution(substitution, signature, explanation),
-            Expression::Formula(formula) => {
-                formula.apply_substitution(substitution, signature, explanation)
-            }
+            Expression::Term(term) => term.apply_substitution(substitution, explanation),
+            Expression::Formula(formula) => formula.apply_substitution(substitution, explanation),
         }
     }
 
@@ -983,6 +958,7 @@ fn existential_quantification(input: &mut Input) -> PResult<Formula> {
                                     Term::Variable(Variable("y".to_owned())),
                                     Term::Variable(variable),
                                 ],
+                                symbol: predicates.get("=").unwrap().clone(),
                             }),
                             Box::new(formula),
                         )),
@@ -1036,19 +1012,13 @@ fn negation(input: &mut Input) -> PResult<Formula> {
 
 fn predicate_application(input: &mut Input) -> PResult<Formula> {
     let name = predicate_name(input)?;
-    let arities = input
-        .state
-        .signature
-        .predicates
-        .get(&name)
-        .unwrap()
-        .arities
-        .clone();
+
+    let symbol = input.state.signature.predicates.get(&name).unwrap().clone();
 
     let checkpoint = input.checkpoint();
 
     let arguments: Vec<Term> = argument_list.parse_next(input)?;
-    if !arities.contains(&arguments.len()) {
+    if !symbol.arities.contains(&arguments.len()) {
         return Err(ErrMode::from_error_kind(input, ErrorKind::Many)
             .add_context(
                 input,
@@ -1063,6 +1033,7 @@ fn predicate_application(input: &mut Input) -> PResult<Formula> {
     Ok(Formula::PredicateApplication {
         predicate: name,
         arguments,
+        symbol,
     })
 }
 
@@ -1089,6 +1060,8 @@ fn infix_predicate_application(input: &mut Input) -> PResult<Formula> {
 
     let predicate_name_parser = spaced(alt(predicate_name_parsers.as_mut_slice()));
 
+    let symbols = input.state.signature.predicates.clone();
+
     let mut parser = separated_foldl1(
         term_list.map(|list| (list, Vec::new())),
         predicate_name_parser,
@@ -1100,6 +1073,7 @@ fn infix_predicate_application(input: &mut Input) -> PResult<Formula> {
                     conjunction.push(Formula::PredicateApplication {
                         predicate: predicate.to_owned(),
                         arguments: vec![term1.clone(), term2.clone()],
+                        symbol: symbols[predicate].clone(),
                     });
                 }
             }
@@ -1167,26 +1141,20 @@ fn base_term(input: &mut Input) -> PResult<Term> {
 
 fn function_application(input: &mut Input) -> PResult<Term> {
     let name = function_name(input)?;
-    let arities = input
-        .state
-        .signature
-        .functions
-        .get(&name)
-        .unwrap()
-        .arities
-        .clone();
+
+    let symbol = input.state.signature.functions.get(&name).unwrap().clone();
 
     let checkpoint = input.checkpoint();
 
     let arguments: Vec<Term> = argument_list.parse_next(input)?;
-    if !arities.contains(&arguments.len()) {
+    if !symbol.arities.contains(&arguments.len()) {
         return Err(
             ErrMode::from_error_kind(input, ErrorKind::Many)
                 .add_context(
                     input,
                     &checkpoint,
                     StrContext::Label(
-                        format!("function application for {name} - arity mismatch - expected {} arguments, got {}", arities.iter().join(" or "), arguments.len()).leak(),
+                        format!("function application for {name} - arity mismatch - expected {} arguments, got {}", symbol.arities.iter().join(" or "), arguments.len()).leak(),
                     ),
                 )
         );
@@ -1195,6 +1163,7 @@ fn function_application(input: &mut Input) -> PResult<Term> {
     Ok(Term::FunctionApplication {
         function: name,
         arguments,
+        symbol,
     })
 }
 
@@ -1203,6 +1172,11 @@ fn vertical_bar_function_application(input: &mut Input) -> PResult<Term> {
         .map(|term| Term::FunctionApplication {
             function: "||".to_owned(),
             arguments: vec![term],
+            symbol: FunctionSymbol {
+                arities: vec![1],
+                precedence: 0,
+                associativity: Associativity::None,
+            },
         })
         .parse_next(input)
 }
@@ -1233,6 +1207,11 @@ fn invisible_function_application(input: &mut Input) -> PResult<Term> {
                 .reduce(|left, right| Term::FunctionApplication {
                     function: "[][]".to_owned(),
                     arguments: vec![left, right],
+                    symbol: FunctionSymbol {
+                        arities: vec![2],
+                        precedence: 0,
+                        associativity: Associativity::None,
+                    },
                 })
                 .unwrap()
         }
@@ -1263,10 +1242,13 @@ fn prefix_function_application(input: &mut Input) -> PResult<Term> {
 
     let predicate_name_parser = spaced(alt(function_name_parsers.as_mut_slice()));
 
+    let symbols = input.state.signature.functions.clone();
+
     let mut parser =
         (predicate_name_parser, base_term).map(|(function, argument)| Term::FunctionApplication {
             function: function.to_owned(),
             arguments: vec![argument],
+            symbol: symbols[function].clone(),
         });
 
     parser.parse_next(input)
@@ -1310,27 +1292,32 @@ fn infix_function_application(input: &mut Input) -> PResult<Term> {
             spaced(alt(function_names.as_mut_slice())).parse_next(input)
         };
 
+        let symbols = input.state.signature.functions.clone();
+
         last_parser = match associativity {
             Associativity::None => Box::new((last_parser, function_name_parser, term).map(
-                |(left, function, right)| Term::FunctionApplication {
+                move |(left, function, right)| Term::FunctionApplication {
                     function: function.to_owned(),
                     arguments: vec![left, right],
+                    symbol: symbols[function].clone(),
                 },
             )),
             Associativity::Left => Box::new(separated_foldl1(
                 last_parser,
                 function_name_parser,
-                |left, function, right| Term::FunctionApplication {
+                move |left, function, right| Term::FunctionApplication {
                     function: function.to_owned(),
                     arguments: vec![left, right],
+                    symbol: symbols[function].clone(),
                 },
             )),
             Associativity::Right | Associativity::Full => Box::new(separated_foldr1(
                 last_parser,
                 function_name_parser,
-                |left, function, right| Term::FunctionApplication {
+                move |left, function, right| Term::FunctionApplication {
                     function: function.to_owned(),
                     arguments: vec![left, right],
+                    symbol: symbols[function].clone(),
                 },
             )),
         }

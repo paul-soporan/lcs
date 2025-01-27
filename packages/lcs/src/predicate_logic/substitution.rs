@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
-use super::parser::{Signature, Term, Variable};
+use super::parser::{Term, Variable};
 
 #[derive(Debug, Clone)]
 pub struct Substitution {
@@ -22,7 +22,7 @@ impl Substitution {
         }
     }
 
-    pub fn without(&self, variable: &Variable, signature: &Signature) -> Substitution {
+    pub fn without(&self, variable: &Variable) -> Substitution {
         let mut new_substitution = self.clone();
         new_substitution.mapping.shift_remove(variable);
 
@@ -31,19 +31,14 @@ impl Substitution {
                 "{} ∖ {{{} ← {}}}",
                 self.name,
                 variable,
-                self.mapping[variable].to_relaxed_syntax(signature, None)
+                self.mapping[variable].to_relaxed_syntax(None)
             );
         }
 
         new_substitution
     }
 
-    pub fn compose(
-        &self,
-        other: &Substitution,
-        signature: &Signature,
-        explanation: &mut Explanation,
-    ) -> Substitution {
+    pub fn compose(&self, other: &Substitution, explanation: &mut Explanation) -> Substitution {
         let mut new_substitution = Substitution {
             name: format!("{}{}", self.name, other.name),
             mapping: IndexMap::new(),
@@ -52,8 +47,7 @@ impl Substitution {
         explanation.with_subexplanation("", |explanation| {
             for (variable, term) in &self.mapping {
                 explanation.with_subexplanation("", |explanation| {
-                    let new_term =
-                        term.with_substitution(other, signature, explanation.subexplanation(""));
+                    let new_term = term.with_substitution(other, explanation.subexplanation(""));
 
                     explanation.merge_subexplanations(|subexplanations| {
                         format!("{} ← {}", variable, subexplanations[0])
@@ -77,7 +71,7 @@ impl Substitution {
                         explanation.step(format!(
                             "{} ← {}",
                             variable,
-                            term.to_relaxed_syntax(signature, None)
+                            term.to_relaxed_syntax(None)
                         ));
 
                         new_substitution
@@ -103,10 +97,11 @@ impl Substitution {
         new_substitution
     }
 
-    pub fn to_relaxed_syntax(&self, signature: &Signature) -> String {
-        let mut components = self.mapping.iter().map(|(variable, term)| {
-            format!("{} ← {}", variable, term.to_relaxed_syntax(signature, None))
-        });
+    pub fn to_relaxed_syntax(&self) -> String {
+        let mut components = self
+            .mapping
+            .iter()
+            .map(|(variable, term)| format!("{} ← {}", variable, term.to_relaxed_syntax(None)));
 
         format!("{{{}}}", components.join(", "))
     }
