@@ -76,7 +76,7 @@ impl Proof {
         }
 
         match &self.next_step {
-            None => unimplemented!(),
+            None => (self.clone(), indexset! {}),
             Some(step) => match &step.node {
                 ProofNode::Trivial => (self.clone(), step.inputs.clone()),
 
