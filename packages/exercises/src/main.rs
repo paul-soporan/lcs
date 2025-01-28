@@ -6,11 +6,11 @@ use lcs::ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition}
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
 use lcs::parser::parse_proposition;
-use lcs::predicate_logic::parser::{
-    parse_expression, Associativity, Expression, Formula, FunctionSymbol, PredicateSymbol,
-    Signature,
-};
+use lcs::predicate_logic::parser::{parse_expression, Signature};
 use lcs::predicate_logic::prove::{Proof, ProofSituation};
+use lcs::predicate_logic::types::{
+    Associativity, Expression, Formula, FunctionSymbol, PredicateSymbol,
+};
 
 fn get_letter(i: usize) -> char {
     (b'a' + i as u8) as char
@@ -19,30 +19,30 @@ fn get_letter(i: usize) -> char {
 fn get_common_math_signature() -> Signature {
     Signature {
         functions: indexmap! {
-            "+".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
-            "-".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
+            // "+".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
+            // "-".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
 
-            "*".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
-            "/".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+            // "*".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+            // "/".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
 
-            "^".to_owned() => FunctionSymbol { arities: vec![2], precedence: 3, associativity: Associativity::Right },
+            // "^".to_owned() => FunctionSymbol { arities: vec![2], precedence: 3, associativity: Associativity::Right },
 
-            "√".to_owned() => FunctionSymbol { arities: vec![1], precedence: 4, associativity: Associativity::Left },
+            // "√".to_owned() => FunctionSymbol { arities: vec![1], precedence: 4, associativity: Associativity::Left },
 
-            "[][]".to_owned() => FunctionSymbol { arities: vec![2], precedence: 5, associativity: Associativity::Left },
+            // "[][]".to_owned() => FunctionSymbol { arities: vec![2], precedence: 5, associativity: Associativity::Left },
         },
         predicates: indexmap! {
-            "=".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
-            "<".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
-            "⩽".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
-            ">".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
-            "⩾".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "=".to_owned() => PredicateSymbol::Infix,
+            "<".to_owned() => PredicateSymbol::Infix,
+            "⩽".to_owned() => PredicateSymbol::Infix,
+            ">".to_owned() => PredicateSymbol::Infix,
+            "⩾".to_owned() => PredicateSymbol::Infix,
 
-            "∈".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "∈".to_owned() => PredicateSymbol::Infix,
 
-            "P".to_owned() => PredicateSymbol { arities: vec![2], infix: false },
-            "Q".to_owned() => PredicateSymbol { arities: vec![3, 2], infix: false },
-            "R".to_owned() => PredicateSymbol { arities: vec![3], infix: false },
+            "P".to_owned() => PredicateSymbol::Prefix(vec![2]),
+            "Q".to_owned() => PredicateSymbol::Prefix(vec![3, 2]),
+            "R".to_owned() => PredicateSymbol::Prefix(vec![3]),
         },
         is_constant: |name| {
             if name == "ℕ" || name == "ℝ" {
@@ -890,7 +890,7 @@ fn exercise_1() {
             "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
         },
         predicates: indexmap! {
-            "≺".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "≺".to_owned() => PredicateSymbol::Infix,
         },
         is_constant: |_| false,
     };
@@ -953,7 +953,7 @@ fn exercise_2() {
             "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
         },
         predicates: indexmap! {
-            "≈".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "≈".to_owned() => PredicateSymbol::Infix,
         },
         is_constant: |_| false,
     };
@@ -1024,7 +1024,7 @@ fn exercise_3() {
             "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
         },
         predicates: indexmap! {
-            "≺".to_owned() => PredicateSymbol { arities: vec![2], infix: true },
+            "≺".to_owned() => PredicateSymbol::Infix,
         },
         is_constant: |_| false,
     };
@@ -1056,10 +1056,7 @@ fn proposition_to_formula(proposition: Proposition) -> Formula {
         Proposition::Atomic(variable) => Formula::PredicateApplication {
             predicate: variable.0,
             arguments: vec![],
-            symbol: PredicateSymbol {
-                arities: vec![0],
-                infix: false,
-            },
+            symbol: PredicateSymbol::Prefix(vec![0]),
         },
         Proposition::Compound(p) => match *p {
             CompoundProposition::UnaryOperation {

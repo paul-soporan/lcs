@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 
 use crate::{evaluate::TruthValue, explanation::Explanation, markdown::Markdown};
 
-use super::parser::{Formula, Term};
+use super::types::{Formula, Term};
 
 #[derive(Debug)]
 pub struct Function<D> {

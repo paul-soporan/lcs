@@ -7,8 +7,8 @@ use itertools::Itertools;
 use crate::{explanation::Explanation, markdown::Markdown};
 
 use super::{
-    parser::{Formula, Term, Variable},
     substitution::Substitution,
+    types::{Formula, Term, Variable},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

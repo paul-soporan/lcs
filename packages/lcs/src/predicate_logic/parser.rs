@@ -1,11 +1,11 @@
 use std::{
     any::Any,
     collections::{BTreeMap, BTreeSet},
-    fmt::Display,
 };
 
+use as_variant::as_variant;
 use colored::Colorize;
-use derive_more::{derive::Display, Debug};
+use derive_more::Debug;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use winnow::{
@@ -17,35 +17,20 @@ use winnow::{
     error::{
         AddContext, ContextError, ErrMode, ErrorKind, ParserError, StrContext, StrContextValue,
     },
-    stream::Stream,
+    stream::{Compare, Stream, StreamIsPartial},
     token::{one_of, take_while},
     PResult, Parser, Stateful,
 };
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
-use super::substitution::Substitution;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Associativity {
-    None,
-    Left,
-    Right,
-    Full,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FunctionSymbol {
-    pub arities: Vec<usize>,
-    pub precedence: usize,
-    pub associativity: Associativity,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PredicateSymbol {
-    pub arities: Vec<usize>,
-    pub infix: bool,
-}
+use super::{
+    substitution::Substitution,
+    types::{
+        Associativity, Constant, Expression, Formula, FunctionSymbol, PredicateSymbol, Term,
+        Variable,
+    },
+};
 
 #[derive(Debug, Clone)]
 pub struct Signature {
@@ -54,35 +39,26 @@ pub struct Signature {
     pub is_constant: fn(&str) -> bool,
 }
 
-// TODO: Don't do this.
-impl Default for Signature {
-    fn default() -> Self {
-        Self {
-            functions: IndexMap::new(),
-            predicates: IndexMap::new(),
-            is_constant: |_| false,
-        }
-    }
-}
-
 impl Signature {
+    pub fn is_name_available(&self, name: &str) -> bool {
+        !self.functions.contains_key(name)
+            && !self.predicates.contains_key(name)
+            && !(self.is_constant)(name)
+    }
+
     fn group_functions_by_precedence(&self) -> BTreeMap<usize, Vec<String>> {
         let mut grouped_functions = BTreeMap::new();
         for (name, symbol) in &self.functions {
-            grouped_functions
-                .entry(symbol.precedence)
-                .or_insert_with(Vec::new)
-                .push(name.clone());
+            if let &FunctionSymbol::Infix { precedence, .. } = symbol {
+                grouped_functions
+                    .entry(precedence)
+                    .or_insert_with(Vec::new)
+                    .push(name.clone());
+            }
         }
         grouped_functions
     }
 }
-
-#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Variable(pub String);
-
-#[derive(Debug, Clone, Display, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Constant(pub String);
 
 #[derive(Debug, Clone, Default)]
 pub struct ExpressionSymbols {
@@ -93,7 +69,7 @@ pub struct ExpressionSymbols {
 }
 
 impl ExpressionSymbols {
-    fn extend(&mut self, other: ExpressionSymbols) {
+    pub fn extend(&mut self, other: ExpressionSymbols) {
         self.functions.extend(other.functions);
         self.predicates.extend(other.predicates);
         self.constants.extend(other.constants);
@@ -104,733 +80,6 @@ impl ExpressionSymbols {
         //         .or_insert_with(BTreeMap::new)
         //         .extend(variables);
         // }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Term {
-    Variable(Variable),
-    Constant(Constant),
-    FunctionApplication {
-        function: String,
-        arguments: Vec<Term>,
-        symbol: FunctionSymbol,
-    },
-}
-
-impl Term {
-    pub fn contains_variable(&self, variable: &Variable) -> bool {
-        match self {
-            Term::Variable(v) => v == variable,
-            Term::Constant(_) => false,
-            Term::FunctionApplication { arguments, .. } => arguments
-                .iter()
-                .any(|argument| argument.contains_variable(variable)),
-        }
-    }
-
-    pub fn apply_substitution(
-        &mut self,
-        substitution: &Substitution,
-        explanation: &mut Explanation,
-    ) {
-        explanation.step(format!(
-            "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(None).red().markdown(),
-            substitution.name
-        ));
-
-        match self {
-            Term::Variable(v) => {
-                if let Some(term) = substitution.mapping.get(v) {
-                    *self = term.clone()
-                }
-            }
-            Term::Constant(_) => {}
-            Term::FunctionApplication {
-                function,
-                arguments,
-                ..
-            } => {
-                for argument in arguments {
-                    argument.apply_substitution(substitution, explanation.subexplanation(""));
-                }
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{}({})", function, subexplanations.join(", "))
-                });
-            }
-        };
-
-        explanation.step(self.to_relaxed_syntax(None).green().markdown());
-    }
-
-    pub fn with_substitution(
-        &self,
-        substitution: &Substitution,
-        explanation: &mut Explanation,
-    ) -> Term {
-        let mut cloned = self.clone();
-        cloned.apply_substitution(substitution, explanation);
-        cloned
-    }
-
-    pub fn is_substitutable(&self, _: &Term, _: &Variable) -> bool {
-        true
-    }
-
-    pub fn to_relaxed_syntax(&self, parent: Option<&FunctionSymbol>) -> String {
-        match self {
-            Term::Variable(v) => v.to_string(),
-            Term::Constant(c) => c.to_string(),
-            Term::FunctionApplication {
-                function,
-                arguments,
-                symbol,
-            } => {
-                if arguments.len() == 2 {
-                    let expression = format!(
-                        "{}{}{}",
-                        arguments[0].to_relaxed_syntax(Some(symbol)),
-                        match function.as_str() {
-                            "[][]" => String::new(),
-                            _ => format!(" {} ", function),
-                        },
-                        arguments[1].to_relaxed_syntax(Some(symbol))
-                    );
-
-                    if let Some(parent_symbol) = parent {
-                        if parent_symbol.precedence > symbol.precedence {
-                            return format!("({})", expression);
-                        }
-                    }
-
-                    expression
-                } else {
-                    format!(
-                        "{}({})",
-                        function,
-                        arguments
-                            .iter()
-                            .map(|term| term.to_relaxed_syntax(None))
-                            .join(", ")
-                    )
-                }
-            }
-        }
-    }
-
-    pub fn relabel_variable(&mut self, old: &str, new: &str) {
-        match self {
-            Term::Variable(v) if v.0 == old => v.0 = new.to_owned(),
-            Term::FunctionApplication { arguments, .. } => {
-                for argument in arguments {
-                    argument.relabel_variable(old, new);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    pub fn get_symbols(
-        &self,
-        context: impl AsRef<str>,
-        variables_by_scope: &mut BTreeMap<String, BTreeMap<Variable, bool>>,
-    ) -> ExpressionSymbols {
-        let context = context.as_ref();
-
-        let mut symbols = ExpressionSymbols::default();
-        // symbols.variables_by_scope = variables_by_scope;
-
-        match self {
-            Term::Variable(variable) => {
-                let mut context = context.to_owned();
-
-                let mut i = context.chars().count() as i32 - 1;
-                while i >= 0 && ".¬∧∨⇒⇔01".contains(context.chars().nth(i as usize).unwrap())
-                {
-                    context.pop();
-                    i -= 1;
-                }
-
-                let variable_context = context.to_owned();
-
-                if i > 0 {
-                    i -= 1;
-
-                    while i >= 0 {
-                        if let Some(parent_context) = variables_by_scope.get(&context) {
-                            let parent_context = parent_context.clone();
-
-                            let variable_context_entry = variables_by_scope
-                                .entry(variable_context.to_owned())
-                                .or_insert_with(BTreeMap::new);
-
-                            for (variable, value) in parent_context {
-                                if value {
-                                    variable_context_entry.insert(variable.clone(), value);
-                                } else {
-                                    let _ =
-                                        variable_context_entry.try_insert(variable.clone(), value);
-                                }
-                            }
-                        }
-
-                        context.pop();
-                        i -= 1;
-                    }
-                }
-
-                let variable_context_entry = variables_by_scope
-                    .entry(variable_context.to_owned())
-                    .or_insert_with(BTreeMap::new);
-                let _ = variable_context_entry.try_insert(variable.clone(), false);
-            }
-            Term::Constant(constant) => {
-                symbols.constants.insert(constant.clone());
-            }
-            Term::FunctionApplication {
-                function,
-                arguments,
-                ..
-            } => {
-                symbols
-                    .functions
-                    .insert(format!("{function}/{}", arguments.len()));
-
-                for argument in arguments {
-                    symbols.extend(argument.get_symbols(context, variables_by_scope));
-                }
-            }
-        };
-
-        symbols
-    }
-}
-
-impl Display for Term {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Term::Variable(v) => write!(f, "{v}"),
-            Term::Constant(c) => write!(f, "{c}"),
-            Term::FunctionApplication {
-                function,
-                arguments,
-                ..
-            } => {
-                write!(
-                    f,
-                    "{function}({})",
-                    arguments.iter().map(|a| a.to_string()).join(", ")
-                )
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Formula {
-    PredicateApplication {
-        predicate: String,
-        arguments: Vec<Term>,
-        symbol: PredicateSymbol,
-    },
-    Tautology,
-    Contradiction,
-    Negation(Box<Formula>),
-    Conjunction(Box<Formula>, Box<Formula>),
-    Disjunction(Box<Formula>, Box<Formula>),
-    Implication(Box<Formula>, Box<Formula>),
-    Equivalence(Box<Formula>, Box<Formula>),
-    UniversalQuantification(Variable, Box<Formula>),
-    ExistentialQuantification(Variable, Box<Formula>),
-}
-
-impl Formula {
-    pub fn apply_substitution(
-        &mut self,
-        substitution: &Substitution,
-        explanation: &mut Explanation,
-    ) {
-        explanation.step(format!(
-            "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(None).red().markdown(),
-            substitution.name
-        ));
-
-        match self {
-            Formula::Tautology | Formula::Contradiction => {}
-            Formula::PredicateApplication {
-                predicate,
-                arguments,
-                ..
-            } => {
-                for argument in arguments {
-                    argument.apply_substitution(substitution, explanation.subexplanation(""));
-                }
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{predicate}({})", subexplanations.join(", "))
-                });
-            }
-            Formula::Negation(f) => {
-                f.apply_substitution(substitution, explanation.subexplanation(""));
-
-                explanation
-                    .merge_subexplanations(|subexplanations| format!("¬{}", subexplanations[0]));
-            }
-            Formula::Conjunction(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{} ∧ {}", subexplanations[0], subexplanations[1])
-                });
-            }
-            Formula::Disjunction(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{} ∨ {}", subexplanations[0], subexplanations[1])
-                });
-            }
-            Formula::Implication(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{} ⇒ {}", subexplanations[0], subexplanations[1])
-                });
-            }
-            Formula::Equivalence(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("{} ⇔ {}", subexplanations[0], subexplanations[1])
-                });
-            }
-            Formula::UniversalQuantification(v, f) => {
-                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("∀{}({})", v, subexplanations[0])
-                });
-            }
-            Formula::ExistentialQuantification(v, f) => {
-                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
-
-                explanation.merge_subexplanations(|subexplanations| {
-                    format!("∃{}({})", v, subexplanations[0])
-                });
-            }
-        }
-
-        explanation.step(self.to_relaxed_syntax(None).green().markdown());
-    }
-
-    pub fn with_substitution(
-        &self,
-        substitution: &Substitution,
-        explanation: &mut Explanation,
-    ) -> Formula {
-        let mut cloned = self.clone();
-        cloned.apply_substitution(substitution, explanation);
-        cloned
-    }
-
-    pub fn is_substitutable(
-        &self,
-        term: &Term,
-        variable: &Variable,
-        signature: &Signature,
-        explanation: &mut Explanation,
-    ) -> bool {
-        explanation.step(format!(
-            "Checking if {} is substitutable for {} in {}",
-            term.to_relaxed_syntax(None).red().markdown(),
-            variable.to_string().blue().markdown(),
-            self.to_relaxed_syntax(None).green().markdown()
-        ));
-
-        match self {
-            Formula::Tautology | Formula::Contradiction => {
-                explanation.step("Tautology/contradiction -> substitutable".to_owned());
-                true
-            }
-            Formula::PredicateApplication { .. } => {
-                explanation.step("Predicate application -> substitutable".to_owned());
-                true
-            }
-            Formula::Negation(f) => f.is_substitutable(
-                term,
-                variable,
-                signature,
-                explanation.subexplanation("Negation"),
-            ),
-            Formula::Conjunction(left, right)
-            | Formula::Disjunction(left, right)
-            | Formula::Implication(left, right)
-            | Formula::Equivalence(left, right) => {
-                left.is_substitutable(term, variable, signature, explanation.subexplanation("LHS"))
-                    && right.is_substitutable(
-                        term,
-                        variable,
-                        signature,
-                        explanation.subexplanation("RHS"),
-                    )
-            }
-            Formula::UniversalQuantification(v, f) | Formula::ExistentialQuantification(v, f) => {
-                if v == variable {
-                    explanation.step(format!("{} is bound (protected) -> substitutable", v));
-                    true
-                } else {
-                    let contains_variable = term.contains_variable(v);
-                    if contains_variable {
-                        explanation.step(format!("{} is free in term -> not substitutable ", v));
-
-                        return false;
-                    }
-
-                    let is_substitutable_in_subformula = f.is_substitutable(
-                        term,
-                        variable,
-                        signature,
-                        explanation.subexplanation("Subformula of quantified formula"),
-                    );
-
-                    if is_substitutable_in_subformula {
-                        explanation.step(
-                            "Variable is substitutable in subformula -> substitutable".to_owned(),
-                        );
-                    } else {
-                        explanation.step(
-                            "Variable is not substitutable in subformula -> not substitutable"
-                                .to_owned(),
-                        );
-                    }
-
-                    is_substitutable_in_subformula
-                }
-            }
-        }
-    }
-
-    pub fn to_relaxed_syntax(&self, parent: Option<&str>) -> String {
-        match self {
-            Formula::Tautology => "⊤".to_owned(),
-            Formula::Contradiction => "⊥".to_owned(),
-            Formula::PredicateApplication {
-                predicate,
-                arguments,
-                symbol,
-            } => {
-                if arguments.is_empty() {
-                    predicate.clone()
-                } else if arguments.len() == 2 && symbol.infix {
-                    let expression = format!(
-                        "{} {predicate} {}",
-                        arguments[0].to_relaxed_syntax(None),
-                        arguments[1].to_relaxed_syntax(None)
-                    );
-
-                    if let Some(parent) = parent {
-                        // if let Some(parent_symbol) = signature.predicates.get(parent) {
-                        //     if parent_symbol.arities.iter().any(|arity| *arity > 2) {
-                        //         return format!("({})", expression);
-                        //     }
-                        // }
-
-                        if parent == "¬" {
-                            return format!("({})", expression);
-                        }
-                    }
-
-                    expression
-                } else {
-                    format!(
-                        "{}({})",
-                        predicate,
-                        arguments
-                            .iter()
-                            .map(|term| term.to_relaxed_syntax(None))
-                            .join(", ")
-                    )
-                }
-            }
-            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(Some("¬"))),
-            Formula::Conjunction(left, right) => {
-                let conjunction = format!(
-                    "{} ∧ {}",
-                    left.to_relaxed_syntax(Some("∧")),
-                    right.to_relaxed_syntax(Some("∧"))
-                );
-
-                if parent == Some("¬") {
-                    format!("({})", conjunction)
-                } else {
-                    conjunction
-                }
-            }
-            Formula::Disjunction(left, right) => {
-                let disjunction = format!(
-                    "{} ∨ {}",
-                    left.to_relaxed_syntax(Some("∨")),
-                    right.to_relaxed_syntax(Some("∨"))
-                );
-
-                if parent == Some("¬") {
-                    format!("({})", disjunction)
-                } else {
-                    disjunction
-                }
-            }
-            Formula::Implication(left, right) => format!(
-                "{} ⇒ {}",
-                left.to_relaxed_syntax(Some("⇒")),
-                right.to_relaxed_syntax(Some("⇒"))
-            ),
-            Formula::Equivalence(left, right) => format!(
-                "{} ⇔ {}",
-                left.to_relaxed_syntax(Some("⇔")),
-                right.to_relaxed_syntax(Some("⇔"))
-            ),
-            Formula::UniversalQuantification(variable, formula) => {
-                format!("∀{}({})", variable, formula.to_relaxed_syntax(Some("∀")))
-            }
-            Formula::ExistentialQuantification(variable, formula) => {
-                format!("∃{}({})", variable, formula.to_relaxed_syntax(Some("∃")))
-            }
-        }
-    }
-
-    pub fn relabel_variable(&mut self, old: &str, new: &str) {
-        match self {
-            Formula::Tautology | Formula::Contradiction => {}
-            Formula::PredicateApplication { arguments, .. } => {
-                for argument in arguments {
-                    argument.relabel_variable(old, new);
-                }
-            }
-            Formula::Negation(f) => f.relabel_variable(old, new),
-            Formula::Conjunction(left, right)
-            | Formula::Disjunction(left, right)
-            | Formula::Implication(left, right)
-            | Formula::Equivalence(left, right) => {
-                left.relabel_variable(old, new);
-                right.relabel_variable(old, new);
-            }
-            Formula::UniversalQuantification(variable, f)
-            | Formula::ExistentialQuantification(variable, f) => {
-                if variable.0 == old {
-                    variable.0 = new.to_owned();
-                }
-                f.relabel_variable(old, new);
-            }
-        }
-    }
-
-    pub fn get_symbols(
-        &self,
-        context: impl AsRef<str>,
-        variables_by_scope: &mut BTreeMap<String, BTreeMap<Variable, bool>>,
-    ) -> ExpressionSymbols {
-        let context = context.as_ref();
-
-        let mut symbols = ExpressionSymbols::default();
-
-        match self {
-            Formula::Tautology | Formula::Contradiction => {}
-            Formula::PredicateApplication {
-                predicate,
-                arguments,
-                ..
-            } => {
-                symbols
-                    .predicates
-                    .insert(format!("{predicate}/{}", arguments.len()));
-                for argument in arguments {
-                    symbols.extend(argument.get_symbols(context, variables_by_scope));
-                }
-            }
-            Formula::Negation(formula) => {
-                symbols.extend(formula.get_symbols(format!("{context}.¬"), variables_by_scope));
-            }
-            Formula::Conjunction(left, right) => {
-                symbols.extend(left.get_symbols(format!("{context}.∧.0"), variables_by_scope));
-                symbols.extend(right.get_symbols(format!("{context}.∧.1"), variables_by_scope));
-            }
-            Formula::Disjunction(left, right) => {
-                symbols.extend(left.get_symbols(format!("{context}.∨.0"), variables_by_scope));
-                symbols.extend(right.get_symbols(format!("{context}.∨.1"), variables_by_scope));
-            }
-            Formula::Implication(left, right) => {
-                symbols.extend(left.get_symbols(format!("{context}.⇒.0"), variables_by_scope));
-                symbols.extend(right.get_symbols(format!("{context}.⇒.1"), variables_by_scope));
-            }
-            Formula::Equivalence(left, right) => {
-                symbols.extend(left.get_symbols(format!("{context}.⇔.0"), variables_by_scope));
-                symbols.extend(right.get_symbols(format!("{context}.⇔.1"), variables_by_scope));
-            }
-
-            Formula::UniversalQuantification(variable, formula) => {
-                let context = format!("{context}.∀");
-                variables_by_scope
-                    .entry(context.clone())
-                    .or_insert_with(BTreeMap::new)
-                    .insert(variable.clone(), true);
-
-                let variable_context = context.clone();
-
-                let mut context = context;
-
-                let mut i = context.chars().count() as i32 - 1;
-
-                while i >= 0 {
-                    if let Some(parent_context) = variables_by_scope.get(&context) {
-                        let parent_context = parent_context.clone();
-
-                        let variable_context_entry = variables_by_scope
-                            .entry(variable_context.to_owned())
-                            .or_insert_with(BTreeMap::new);
-
-                        for (variable, value) in parent_context {
-                            if value {
-                                variable_context_entry.insert(variable.clone(), value);
-                            } else {
-                                let _ = variable_context_entry.try_insert(variable.clone(), value);
-                            }
-                        }
-                    }
-
-                    context.pop();
-                    i -= 1;
-                }
-
-                symbols.extend(formula.get_symbols(variable_context, variables_by_scope));
-            }
-
-            Formula::ExistentialQuantification(variable, formula) => {
-                let context = format!("{context}.∃");
-                variables_by_scope
-                    .entry(context.clone())
-                    .or_insert_with(BTreeMap::new)
-                    .insert(variable.clone(), true);
-
-                let variable_context = context.clone();
-
-                let mut context = context;
-
-                let mut i = context.chars().count() as i32 - 1;
-
-                while i >= 0 {
-                    if let Some(parent_context) = variables_by_scope.get(&context) {
-                        let parent_context = parent_context.clone();
-
-                        let variable_context_entry = variables_by_scope
-                            .entry(variable_context.to_owned())
-                            .or_insert_with(BTreeMap::new);
-
-                        for (variable, value) in parent_context {
-                            if value {
-                                variable_context_entry.insert(variable.clone(), value);
-                            } else {
-                                let _ = variable_context_entry.try_insert(variable.clone(), value);
-                            }
-                        }
-                    }
-
-                    context.pop();
-                    i -= 1;
-                }
-
-                symbols.extend(formula.get_symbols(variable_context, variables_by_scope));
-            }
-        };
-
-        symbols
-    }
-
-    pub fn get_free_root_variables(&self) -> BTreeSet<Variable> {
-        let mut variables_by_scope = BTreeMap::new();
-        self.get_symbols("", &mut variables_by_scope);
-
-        variables_by_scope
-            .get("")
-            .map(|variables| variables.keys().cloned().collect())
-            .unwrap_or_default()
-    }
-}
-
-impl Display for Formula {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Formula::Tautology => write!(f, "⊤"),
-            Formula::Contradiction => write!(f, "⊥"),
-            Formula::PredicateApplication {
-                predicate,
-                arguments,
-                ..
-            } => {
-                if arguments.is_empty() {
-                    write!(f, "{}", predicate)
-                } else {
-                    write!(
-                        f,
-                        "{predicate}({})",
-                        arguments.iter().map(|a| a.to_string()).join(", ")
-                    )
-                }
-            }
-            Formula::Negation(formula) => write!(f, "¬{}", formula),
-            Formula::Conjunction(left, right) => write!(f, "({} ∧ {})", left, right),
-            Formula::Disjunction(left, right) => write!(f, "({} ∨ {})", left, right),
-            Formula::Implication(left, right) => write!(f, "({} ⇒ {})", left, right),
-            Formula::Equivalence(left, right) => write!(f, "({} ⇔ {})", left, right),
-            Formula::UniversalQuantification(variable, formula) => {
-                write!(f, "∀{variable}({formula})")
-            }
-            Formula::ExistentialQuantification(variable, formula) => {
-                write!(f, "∃{variable}({formula})")
-            }
-        }
-    }
-}
-
-#[derive(Debug, Display, Clone)]
-pub enum Expression {
-    Term(Term),
-    Formula(Formula),
-}
-
-impl Expression {
-    pub fn to_relaxed_syntax(&self) -> String {
-        match self {
-            Expression::Term(term) => term.to_relaxed_syntax(None),
-            Expression::Formula(formula) => formula.to_relaxed_syntax(None),
-        }
-    }
-
-    pub fn apply_substitution(
-        &mut self,
-        substitution: &Substitution,
-        explanation: &mut Explanation,
-    ) {
-        match self {
-            Expression::Term(term) => term.apply_substitution(substitution, explanation),
-            Expression::Formula(formula) => formula.apply_substitution(substitution, explanation),
-        }
-    }
-
-    pub fn get_symbols(
-        &self,
-        variables_by_scope: &mut BTreeMap<String, BTreeMap<Variable, bool>>,
-    ) -> ExpressionSymbols {
-        match self {
-            Expression::Term(term) => term.get_symbols("".to_owned(), variables_by_scope),
-            Expression::Formula(formula) => formula.get_symbols("".to_owned(), variables_by_scope),
-        }
     }
 }
 
@@ -1018,7 +267,7 @@ fn predicate_application(input: &mut Input) -> PResult<Formula> {
     let checkpoint = input.checkpoint();
 
     let arguments: Vec<Term> = argument_list.parse_next(input)?;
-    if !symbol.arities.contains(&arguments.len()) {
+    if !symbol.supports_arity(arguments.len()) {
         return Err(ErrMode::from_error_kind(input, ErrorKind::Many)
             .add_context(
                 input,
@@ -1043,15 +292,16 @@ fn infix_predicate_application(input: &mut Input) -> PResult<Formula> {
         .signature
         .predicates
         .iter()
-        .filter_map(|(name, symbol)| {
-            if symbol.arities.contains(&2) {
-                Some(name)
-            } else {
-                None
-            }
+        .filter_map(|(name, symbol)| match symbol {
+            PredicateSymbol::Infix => Some(name),
+            _ => None,
         })
         .cloned()
         .collect::<Vec<_>>();
+
+    if predicate_names.is_empty() {
+        return Err(ErrMode::from_error_kind(input, ErrorKind::Alt));
+    }
 
     let mut predicate_name_parsers = predicate_names
         .iter()
@@ -1107,6 +357,11 @@ fn predicate_name(input: &mut Input) -> PResult<String> {
         .keys()
         .cloned()
         .collect::<Vec<_>>();
+
+    if predicate_names.is_empty() {
+        return Err(ErrMode::from_error_kind(input, ErrorKind::Alt));
+    }
+
     let mut predicate_name_parsers = predicate_names
         .iter()
         .map(|name| name.as_str())
@@ -1147,14 +402,15 @@ fn function_application(input: &mut Input) -> PResult<Term> {
     let checkpoint = input.checkpoint();
 
     let arguments: Vec<Term> = argument_list.parse_next(input)?;
-    if !symbol.arities.contains(&arguments.len()) {
+    if !symbol.supports_arity(arguments.len()) {
         return Err(
             ErrMode::from_error_kind(input, ErrorKind::Many)
                 .add_context(
                     input,
                     &checkpoint,
                     StrContext::Label(
-                        format!("function application for {name} - arity mismatch - expected {} arguments, got {}", symbol.arities.iter().join(" or "), arguments.len()).leak(),
+                        format!("function application for {name} - arity mismatch - expected {} arguments, got {}", "", arguments.len()).leak(),
+                        // format!("function application for {name} - arity mismatch - expected {} arguments, got {}", symbol.arities.iter().join(" or "), arguments.len()).leak(),
                     ),
                 )
         );
@@ -1172,8 +428,7 @@ fn vertical_bar_function_application(input: &mut Input) -> PResult<Term> {
         .map(|term| Term::FunctionApplication {
             function: "||".to_owned(),
             arguments: vec![term],
-            symbol: FunctionSymbol {
-                arities: vec![1],
+            symbol: FunctionSymbol::Infix {
                 precedence: 0,
                 associativity: Associativity::None,
             },
@@ -1207,8 +462,7 @@ fn invisible_function_application(input: &mut Input) -> PResult<Term> {
                 .reduce(|left, right| Term::FunctionApplication {
                     function: "[][]".to_owned(),
                     arguments: vec![left, right],
-                    symbol: FunctionSymbol {
-                        arities: vec![2],
+                    symbol: FunctionSymbol::Infix {
                         precedence: 0,
                         associativity: Associativity::None,
                     },
@@ -1226,7 +480,7 @@ fn prefix_function_application(input: &mut Input) -> PResult<Term> {
         .functions
         .iter()
         .filter_map(|(name, symbol)| {
-            if symbol.arities.contains(&1) {
+            if symbol.supports_arity(1) {
                 Some(name)
             } else {
                 None
@@ -1235,17 +489,21 @@ fn prefix_function_application(input: &mut Input) -> PResult<Term> {
         .cloned()
         .collect::<Vec<_>>();
 
+    if unary_functions.is_empty() {
+        return Err(ErrMode::from_error_kind(input, ErrorKind::Alt));
+    }
+
     let mut function_name_parsers = unary_functions
         .iter()
         .map(|name| name.as_str())
         .collect::<Vec<_>>();
 
-    let predicate_name_parser = spaced(alt(function_name_parsers.as_mut_slice()));
+    let function_name_parser = spaced(alt(function_name_parsers.as_mut_slice()));
 
     let symbols = input.state.signature.functions.clone();
 
     let mut parser =
-        (predicate_name_parser, base_term).map(|(function, argument)| Term::FunctionApplication {
+        (function_name_parser, base_term).map(|(function, argument)| Term::FunctionApplication {
             function: function.to_owned(),
             arguments: vec![argument],
             symbol: symbols[function].clone(),
@@ -1261,23 +519,18 @@ fn infix_function_application(input: &mut Input) -> PResult<Term> {
         Box::new(alt((invisible_function_application, base_term)));
 
     for functions in function_groups.values().rev() {
-        let associativity = input
-            .state
-            .signature
-            .functions
-            .get(&functions[0])
-            .unwrap()
-            .associativity;
+        let associativity = as_variant!(
+            input.state.signature.functions.get(&functions[0]).unwrap(),
+            FunctionSymbol::Infix { associativity, .. } => associativity
+        )
+        .unwrap();
 
         let mut function_names = Vec::new();
 
         for function in functions {
-            let symbol = input.state.signature.functions.get(function).unwrap();
-            if !symbol.arities.contains(&2) {
-                continue;
-            }
+            let symbol_associativity = as_variant!(input.state.signature.functions.get(function).unwrap(), FunctionSymbol::Infix { associativity, .. } => associativity).unwrap();
 
-            if symbol.associativity != associativity {
+            if symbol_associativity != associativity {
                 continue;
             }
 
@@ -1367,8 +620,17 @@ fn constant(input: &mut Input) -> PResult<Constant> {
 }
 
 fn variable(input: &mut Input) -> PResult<Variable> {
+    let signature = input.state.signature.clone();
+
     (one_of(('a'..='z', 'α'..='ω', 'Α'..='Ω')), digit0)
-        .map(|(letter, index)| Variable(format!("{letter}{index}")))
+        .verify_map(|(letter, index)| {
+            let name = format!("{letter}{index}");
+            if signature.is_name_available(&name) {
+                Some(Variable(name))
+            } else {
+                None
+            }
+        })
         .parse_next(input)
 }
 

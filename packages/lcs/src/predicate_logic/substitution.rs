@@ -6,7 +6,7 @@ use itertools::Itertools;
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
-use super::parser::{Term, Variable};
+use super::types::{Term, Variable};
 
 #[derive(Debug, Clone)]
 pub struct Substitution {
