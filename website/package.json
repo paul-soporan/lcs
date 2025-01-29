@@ -7,10 +7,10 @@
     "dev": "vite",
     "preview": "vite preview",
     "build": "vite build",
+    "build:website": "run build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/",
-    "build:website": "run build:lcs-wasm && run build"
+    "format": "prettier --write src/"
   },
   "dependencies": {
     "@primevue/themes": "^4.2.5",

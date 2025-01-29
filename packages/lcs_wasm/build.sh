@@ -32,6 +32,8 @@ JS_CONTENT="$(cat ./pkg/build.js)"
 
 NEWLINE=$'\n'
 
+rm ./pkg/.gitignore
+
 # SEARCH_VALUE="const path = require('path').join(__dirname, 'build_bg.wasm');${NEWLINE}const bytes = require('fs').readFileSync(path);"
 # REPLACE_VALUE="const bytes = Buffer.from('$WASM_CONTENT', 'base64');"
 

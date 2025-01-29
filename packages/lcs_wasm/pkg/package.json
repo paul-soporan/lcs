@@ -1,0 +1,17 @@
+{
+  "name": "lcs_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "build_bg.wasm",
+    "build.js",
+    "build_bg.js",
+    "build.d.ts"
+  ],
+  "main": "build.js",
+  "types": "build.d.ts",
+  "sideEffects": [
+    "./build.js",
+    "./snippets/*"
+  ]
+}
