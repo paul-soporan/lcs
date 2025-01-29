@@ -2,11 +2,13 @@ use colored::Colorize;
 use indexmap::{indexmap, IndexMap};
 use itertools::Itertools;
 use lcs::{
-    ast::{Proposition, TruthFunction, TruthTable},
-    bcf::get_bcf,
-    circuit::{Analyze, Circuit, Component},
-    evaluate::TruthValue,
     markdown::Markdown,
+    propositional_logic::{
+        ast::{Proposition, TruthFunction, TruthTable},
+        bcf::get_bcf,
+        circuit::{Analyze, Circuit, Component},
+        evaluate::TruthValue,
+    },
 };
 
 use crate::homework::utils::get_letter;

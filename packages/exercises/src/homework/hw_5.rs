@@ -2,14 +2,16 @@ use colored::Colorize;
 use indexmap::{indexmap, IndexMap};
 use itertools::Itertools;
 use lcs::{
-    ast::{LogicalEquivalence, Proposition, TruthFunction, TruthTable},
-    bcf::get_bcf,
-    circuit::{into_nand_only_component, Analyze, Circuit, Component},
-    evaluate::TruthValue,
     explanation::Explanation,
     markdown::Markdown,
-    normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, NegationNormalForm},
-    parser::parse_proposition,
+    propositional_logic::{
+        ast::{LogicalEquivalence, Proposition, TruthFunction, TruthTable},
+        bcf::get_bcf,
+        circuit::{into_nand_only_component, Analyze, Circuit, Component},
+        evaluate::TruthValue,
+        normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, NegationNormalForm},
+        parser::parse_proposition,
+    },
 };
 
 use crate::homework::utils::get_letter;

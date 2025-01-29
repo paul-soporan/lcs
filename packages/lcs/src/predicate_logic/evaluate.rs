@@ -3,7 +3,9 @@ use std::fmt::Display;
 use colored::Colorize;
 use indexmap::IndexMap;
 
-use crate::{evaluate::TruthValue, explanation::Explanation, markdown::Markdown};
+use crate::{
+    explanation::Explanation, markdown::Markdown, propositional_logic::evaluate::TruthValue,
+};
 
 use super::types::{Formula, Term};
 

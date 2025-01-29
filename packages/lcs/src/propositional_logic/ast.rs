@@ -10,9 +10,11 @@ use indexmap::{IndexMap, IndexSet};
 use termtree::Tree;
 
 use crate::{
-    evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
     markdown::Markdown,
-    normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
+    propositional_logic::{
+        evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
+        normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
+    },
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]

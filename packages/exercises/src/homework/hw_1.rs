@@ -1,5 +1,7 @@
 use colored::Colorize;
-use lcs::{explanation::Explanation, markdown::Markdown, parser::parse_proposition};
+use lcs::{
+    explanation::Explanation, markdown::Markdown, propositional_logic::parser::parse_proposition,
+};
 
 use crate::homework::utils::get_letter;
 

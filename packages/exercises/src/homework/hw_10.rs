@@ -3,14 +3,16 @@ use colored::Colorize;
 use indexmap::{indexmap, indexset, IndexMap};
 use itertools::Itertools;
 use lcs::{
-    ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition},
     explanation::Explanation,
     markdown::Markdown,
-    parser::parse_proposition,
     predicate_logic::{
         parser::{parse_expression, Signature},
         prove::{Proof, ProofSituation},
         types::{Expression, Formula, PredicateSymbol},
+    },
+    propositional_logic::{
+        ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition},
+        parser::parse_proposition,
     },
 };
 

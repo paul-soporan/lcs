@@ -5,7 +5,9 @@ use std::{
 
 use indexmap::IndexSet;
 
-use crate::normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal};
+use crate::propositional_logic::normal_forms::{
+    ConjunctiveNormalForm, DisjunctiveNormalForm, Literal,
+};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Bit(pub String);

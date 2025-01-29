@@ -4,9 +4,9 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use ordermap::OrderMap;
 
-use crate::{
-    ast::PropositionalVariable,
-    normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
+use crate::propositional_logic::ast::PropositionalVariable;
+use crate::propositional_logic::normal_forms::{
+    ConjunctiveNormalForm, DisjunctiveNormalForm, Literal,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

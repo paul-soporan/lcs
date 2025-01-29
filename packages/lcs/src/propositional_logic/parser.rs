@@ -12,13 +12,15 @@ use winnow::{
 };
 
 use crate::{
-    ast::{
-        BinaryOperation, CompoundProposition, LogicalConsequence, LogicalEquivalence,
-        NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
-    },
     explanation::Explanation,
     markdown::Markdown,
-    normal_forms::Literal,
+    propositional_logic::{
+        ast::{
+            BinaryOperation, CompoundProposition, LogicalConsequence, LogicalEquivalence,
+            NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
+        },
+        normal_forms::Literal,
+    },
 };
 
 #[derive(Debug)]

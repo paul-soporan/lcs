@@ -1,10 +1,12 @@
 use colored::Colorize;
 
 use crate::{
-    ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition, UnaryOperation},
     explanation::Explanation,
     markdown::Markdown,
-    simplify::law,
+    propositional_logic::{
+        ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition, UnaryOperation},
+        simplify::law,
+    },
 };
 
 pub fn reduce_proposition(proposition: Proposition, explanation: &mut Explanation) -> Proposition {

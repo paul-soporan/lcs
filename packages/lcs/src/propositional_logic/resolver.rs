@@ -9,11 +9,15 @@ use itertools::Itertools;
 use replace_with::replace_with_or_abort;
 
 use crate::{
-    ast::{CompoundProposition, LogicalConsequence, NaryOperation, Proposition, UnaryOperation},
-    evaluate::{Interpretation, TruthValue},
     explanation::Explanation,
     markdown::Markdown,
-    normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
+    propositional_logic::{
+        ast::{
+            CompoundProposition, LogicalConsequence, NaryOperation, Proposition, UnaryOperation,
+        },
+        evaluate::{Interpretation, TruthValue},
+        normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
+    },
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]

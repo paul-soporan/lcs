@@ -1,11 +1,13 @@
 use colored::Colorize;
 use indexmap::{indexmap, IndexMap};
 use lcs::{
-    ast::{LogicalConsequence, PropositionalVariable, TruthTable},
-    evaluate::ExplainedValue,
     explanation::Explanation,
     markdown::Markdown,
-    parser::{parse_logical_consequence, parse_logical_equivalence, parse_proposition},
+    propositional_logic::{
+        ast::{LogicalConsequence, PropositionalVariable, TruthTable},
+        evaluate::ExplainedValue,
+        parser::{parse_logical_consequence, parse_logical_equivalence, parse_proposition},
+    },
 };
 
 use crate::homework::utils::get_letter;
@@ -19,7 +21,7 @@ fn exercise_1() {
         println!("## {})", get_letter(i));
         println!("Input: {}", input.blue().markdown());
 
-        let mut explanation: Explanation = Explanation::default();
+        let mut explanation = Explanation::default();
 
         let result = parse_proposition(input, &mut explanation);
 

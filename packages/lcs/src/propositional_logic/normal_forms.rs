@@ -5,11 +5,15 @@ use itertools::Itertools;
 use maplit::btreeset;
 
 use crate::{
-    ast::{CompoundProposition, NaryOperation, Proposition, PropositionalVariable, UnaryOperation},
     explanation::Explanation,
     markdown::Markdown,
-    reduce::reduce_proposition,
-    simplify::{law, simplify_conjunction, simplify_disjunction, simplify_proposition},
+    propositional_logic::{
+        ast::{
+            CompoundProposition, NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
+        },
+        reduce::reduce_proposition,
+        simplify::{law, simplify_conjunction, simplify_disjunction, simplify_proposition},
+    },
 };
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]

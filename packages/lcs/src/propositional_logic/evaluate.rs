@@ -3,7 +3,7 @@ use std::fmt::Display;
 use colored::Colorize;
 use indexmap::IndexMap;
 
-use crate::ast::{
+use crate::propositional_logic::ast::{
     BinaryOperation, CompoundProposition, NaryOperation, Proposition, PropositionalVariable,
     UnaryOperation, VariableSet,
 };

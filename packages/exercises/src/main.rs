@@ -10,7 +10,7 @@ fn main() -> std::io::Result<()> {
 
     let hw_number = env::args()
         .nth(1)
-        .expect("Please specify which homework to solve (0-10).")
+        .expect("Please specify which homework to solve (1-10).")
         .parse::<u32>()
         .expect("Please specify a valid number.");
 

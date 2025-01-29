@@ -3,16 +3,18 @@ use std::collections::BTreeSet;
 use colored::Colorize;
 use indexmap::{indexmap, indexset};
 use lcs::{
-    ast::{LogicalConsequence, Proposition, PropositionalVariable},
     explanation::Explanation,
     markdown::Markdown,
-    normal_forms::ConjunctiveNormalForm,
-    parser::{parse_clause, parse_clause_set, parse_proposition},
     predicate_logic::{
         parser::{parse_expression, Signature},
         types::{Expression, FunctionSymbol, PredicateSymbol},
     },
-    resolver::Resolver,
+    propositional_logic::{
+        ast::{LogicalConsequence, Proposition, PropositionalVariable},
+        normal_forms::ConjunctiveNormalForm,
+        parser::{parse_clause, parse_clause_set, parse_proposition},
+        resolver::Resolver,
+    },
 };
 
 use crate::homework::utils::get_letter;

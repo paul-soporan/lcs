@@ -1,9 +1,11 @@
 use colored::Colorize;
 use lcs::{
-    ast::{CompoundProposition, NaryOperation},
-    evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation},
     explanation::Explanation,
-    parser::parse_proposition,
+    propositional_logic::{
+        ast::{CompoundProposition, NaryOperation},
+        evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation},
+        parser::parse_proposition,
+    },
 };
 
 use crate::homework::utils::get_letter;

@@ -3,9 +3,9 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
-    ast::{CompoundProposition, NaryOperation, Proposition, UnaryOperation},
     explanation::Explanation,
     markdown::Markdown,
+    propositional_logic::ast::{CompoundProposition, NaryOperation, Proposition, UnaryOperation},
 };
 
 pub fn law(equivalence: &str) -> String {
