@@ -1,4 +1,4 @@
-use indexmap::indexmap;
+use indexmap::{indexmap, IndexSet};
 use lcs::{
     explanation::Explanation,
     predicate_logic::{
@@ -11,16 +11,17 @@ use lcs::{
 fn exercise_3() {
     let signature = Signature {
         functions: indexmap! {
-            "f".to_owned() => FunctionSymbol::Prefix(vec![2]),
-            "g".to_owned() => FunctionSymbol::Prefix(vec![1]),
-            "h".to_owned() => FunctionSymbol::Prefix(vec![3]),
+            "f".to_owned() => FunctionSymbol::new().prefix_arity(2),
+            "g".to_owned() => FunctionSymbol::new().prefix_arity(1),
+            "h".to_owned() => FunctionSymbol::new().prefix_arity(3),
         },
         predicates: indexmap! {
             "P".to_owned() => PredicateSymbol::Prefix(vec![2]),
             "Q".to_owned() => PredicateSymbol::Prefix(vec![2]),
             "R".to_owned() => PredicateSymbol::Prefix(vec![3]),
         },
-        is_constant: |name| matches!(name, "a" | "b" | "c"),
+        static_constants: IndexSet::from_iter(["a".to_owned(), "b".to_owned(), "c".to_owned()]),
+        is_constant_fn: |_| false,
     };
 
     let test_cases: [(&str, Result<Expression, Option<!>>); 9] = [

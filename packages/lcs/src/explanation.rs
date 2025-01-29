@@ -97,6 +97,13 @@ impl Explanation {
         }
     }
 
+    pub fn use_tree(&mut self, tree: Tree<String>) {
+        let subexplanation = self.subexplanation(tree.root);
+        for leaf in tree.leaves {
+            subexplanation.use_tree(leaf);
+        }
+    }
+
     pub fn get_tree(&self) -> Tree<String> {
         let mut leaves = vec![];
 

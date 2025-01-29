@@ -1,0 +1,41 @@
+{
+  "name": "website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview",
+    "build-only": "vite build",
+    "type-check": "vue-tsc --build",
+    "lint": "eslint . --fix",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "@primevue/themes": "^4.2.5",
+    "lcs_wasm": "workspace:^",
+    "pinia": "^2.3.1",
+    "primeflex": "^3.3.1",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.2.5",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.0",
+    "@types/node": "^22.12.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/eslint-config-prettier": "^10.1.0",
+    "@vue/eslint-config-typescript": "^14.3.0",
+    "@vue/tsconfig": "^0.7.0",
+    "jiti": "^2.4.2",
+    "npm-run-all2": "^7.0.2",
+    "typescript": "~5.7.3",
+    "vite": "^6.0.11",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-vue-devtools": "^7.7.0",
+    "vite-plugin-wasm": "^3.4.1",
+    "vue-tsc": "^2.2.0"
+  }
+}

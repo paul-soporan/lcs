@@ -2,6 +2,7 @@
 #![feature(closure_lifetime_binder)]
 #![feature(let_chains)]
 #![feature(map_try_insert)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 
 pub mod ast;
 pub mod bcf;

@@ -444,45 +444,6 @@ fn is_formula_simpler(left: &Formula, right: &Formula) -> bool {
 }
 
 impl ProofSituation {
-    pub fn use_local(&self) -> Option<ProofStep> {
-        if self.knowledge_base.contains(&self.goal) {
-            return Some(ProofStep {
-                rule: "local".to_string(),
-                result: ProofResult::Proven,
-                node: ProofNode::Trivial,
-                announcement: "%I1 is what we had to prove.".to_string(),
-                inputs: indexset! {self.goal.clone()},
-                outputs: indexset! {},
-            });
-        }
-
-        None
-    }
-
-    pub fn use_contradiction(&self) -> Option<ProofStep> {
-        for (formula_index, formula) in self.knowledge_base.iter().enumerate() {
-            let negated = negated_formula(formula);
-            let negated_index = self.knowledge_base.get_index_of(&negated);
-
-            if let Some(negated_index) = negated_index {
-                return Some(ProofStep {
-                    rule: "contradiction".to_string(),
-                    result: ProofResult::Contradiction,
-                    node: ProofNode::Trivial,
-                    announcement: "%I1 is in contradiction with %I2.".to_string(),
-                    inputs: if formula_index < negated_index {
-                        indexset! {negated, formula.clone()}
-                    } else {
-                        indexset! {formula.clone(), negated}
-                    },
-                    outputs: indexset! {},
-                });
-            }
-        }
-
-        None
-    }
-
     pub fn build_proof(&self) -> Proof {
         match self.apply_rules() {
             Some(step) => {
@@ -506,7 +467,7 @@ impl ProofSituation {
         }
     }
 
-    pub fn apply_rules(&self) -> Option<ProofStep> {
+    fn apply_rules(&self) -> Option<ProofStep> {
         self.use_local()
             .or_else(|| self.use_contradiction())
             .or_else(|| self.simplify_goal())
@@ -521,7 +482,46 @@ impl ProofSituation {
             .or_else(|| self.reduce_implication())
     }
 
-    pub fn simplify_goal(&self) -> Option<ProofStep> {
+    fn use_local(&self) -> Option<ProofStep> {
+        if self.knowledge_base.contains(&self.goal) {
+            return Some(ProofStep {
+                rule: "local".to_string(),
+                result: ProofResult::Proven,
+                node: ProofNode::Trivial,
+                announcement: "%I1 is what we had to prove.".to_string(),
+                inputs: indexset! {self.goal.clone()},
+                outputs: indexset! {},
+            });
+        }
+
+        None
+    }
+
+    fn use_contradiction(&self) -> Option<ProofStep> {
+        for (formula_index, formula) in self.knowledge_base.iter().enumerate() {
+            let negated = negated_formula(formula);
+            let negated_index = self.knowledge_base.get_index_of(&negated);
+
+            if let Some(negated_index) = negated_index {
+                return Some(ProofStep {
+                    rule: "contradiction".to_string(),
+                    result: ProofResult::Contradiction,
+                    node: ProofNode::Trivial,
+                    announcement: "%I1 is in contradiction with %I2.".to_string(),
+                    inputs: if formula_index < negated_index {
+                        indexset! {negated, formula.clone()}
+                    } else {
+                        indexset! {formula.clone(), negated}
+                    },
+                    outputs: indexset! {},
+                });
+            }
+        }
+
+        None
+    }
+
+    fn simplify_goal(&self) -> Option<ProofStep> {
         match &self.goal {
             Formula::Conjunction(box left, box right) => {
                 let left_proof = ProofSituation {
@@ -636,7 +636,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn reduce_implication(&self) -> Option<ProofStep> {
+    fn reduce_implication(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(hypothesis, conclusion) => {
@@ -673,7 +673,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_suffices_to_prove(&self) -> Option<ProofStep> {
+    fn use_suffices_to_prove(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -707,7 +707,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_universal_quantifier(&self) -> Option<ProofStep> {
+    fn use_universal_quantifier(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::UniversalQuantification(variable, box subformula) => {
@@ -759,7 +759,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_contrapositive(&self) -> Option<ProofStep> {
+    fn use_contrapositive(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -800,7 +800,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_cases(&self) -> Option<ProofStep> {
+    fn use_cases(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Disjunction(box left, box right) => {
@@ -852,7 +852,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_modus_ponens(&self) -> Option<ProofStep> {
+    fn use_modus_ponens(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Implication(box hypothesis, box conclusion) => {
@@ -915,7 +915,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_conjunction(&self) -> Option<ProofStep> {
+    fn use_conjunction(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Conjunction(box left, box right) => {
@@ -948,7 +948,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn use_negation(&self) -> Option<ProofStep> {
+    fn use_negation(&self) -> Option<ProofStep> {
         for formula in &self.knowledge_base {
             match formula {
                 Formula::Negation(box negated_formula) => match negated_formula {
@@ -1042,7 +1042,7 @@ impl ProofSituation {
         None
     }
 
-    pub fn proof_by_contradiction(&self) -> Option<ProofStep> {
+    fn proof_by_contradiction(&self) -> Option<ProofStep> {
         if self.goal == Formula::Contradiction {
             return None;
         }

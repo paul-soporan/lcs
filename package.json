@@ -1,0 +1,17 @@
+{
+    "name": "a",
+    "workspaces": [
+        "website",
+        "packages/lcs_wasm/pkg"
+    ],
+    "scripts": {
+        "build:lcs-wasm": "cd ./packages/lcs_wasm && ./build.sh"
+    },
+    "devDependencies": {
+        "eslint": "^9.18.0",
+        "eslint-plugin-vue": "^9.32.0",
+        "prettier": "^3.4.2",
+        "typescript": "~5.7.3",
+        "wasm-pack": "^0.13.1"
+    }
+}

@@ -1,7 +1,15 @@
 use as_variant::as_variant;
 use indexmap::IndexSet;
+
+#[cfg(not(target_arch = "wasm32"))]
 use unlatex::ast::Node;
 
+#[cfg(target_arch = "wasm32")]
+pub fn get_interpolation_for_latex(input: &str) -> String {
+    input.to_owned()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 pub fn get_interpolation_for_latex(input: &str) -> String {
     let root = unlatex::parse(input).unwrap();
     let nodes = match root {
@@ -12,6 +20,7 @@ pub fn get_interpolation_for_latex(input: &str) -> String {
     get_interpolation_for_nodes(&nodes)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn get_interpolation_for_nodes(nodes: &[Node]) -> String {
     let mut interpolation = String::new();
 

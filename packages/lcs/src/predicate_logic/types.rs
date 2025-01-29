@@ -6,6 +6,7 @@ use std::{
 use colored::Colorize;
 use derive_more::derive::Display;
 use itertools::Itertools;
+use termtree::Tree;
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
@@ -25,24 +26,50 @@ pub enum Associativity {
     Full,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct InfixFunctionSymbol {
+    pub associativity: Associativity,
+    pub precedence: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum FunctionSymbol {
-    /// Prefix-only functions can have different arities, since there's no ambiguity.
-    Prefix(Vec<usize>),
-    /// Only binary functions can be infix. Can also be used in prefix form, in order to be usable in strict syntax.
-    Infix {
-        associativity: Associativity,
-        precedence: usize,
-    },
+pub struct FunctionSymbol {
+    pub prefix: Vec<usize>,
+    pub infix: Option<InfixFunctionSymbol>,
 }
 
 impl FunctionSymbol {
-    pub fn supports_arity(&self, arity: usize) -> bool {
-        match self {
-            FunctionSymbol::Prefix(arities) => arities.contains(&arity),
-            FunctionSymbol::Infix { .. } => arity == 2,
+    pub fn new() -> Self {
+        Self {
+            prefix: Vec::new(),
+            infix: None,
         }
     }
+
+    pub fn prefix_arity(mut self, arity: usize) -> Self {
+        self.prefix.push(arity);
+
+        self
+    }
+
+    pub fn infix(mut self, associativity: Associativity, precedence: usize) -> Self {
+        self.infix = Some(InfixFunctionSymbol {
+            associativity,
+            precedence,
+        });
+
+        // Infix functions can also be used as prefix in order to be usable in strict syntax.
+        self.prefix.push(2);
+
+        self
+    }
+
+    // pub fn supports_arity(&self, arity: usize) -> bool {
+    //     match self {
+    //         FunctionSymbol::Prefix(arities) => arities.contains(&arity),
+    //         FunctionSymbol::Infix { .. } => arity == 2,
+    //     }
+    // }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -74,6 +101,18 @@ pub enum Term {
 }
 
 impl Term {
+    pub fn get_tree(&self) -> Tree<String> {
+        match self {
+            Term::Variable(v) => Tree::new(v.0.clone()),
+            Term::Constant(c) => Tree::new(c.0.clone()),
+            Term::FunctionApplication {
+                function,
+                arguments,
+                ..
+            } => Tree::new(function.clone()).with_leaves(arguments.iter().map(Term::get_tree)),
+        }
+    }
+
     pub fn contains_variable(&self, variable: &Variable) -> bool {
         match self {
             Term::Variable(v) => v == variable,
@@ -143,7 +182,7 @@ impl Term {
                 arguments,
                 symbol,
             } => {
-                if let FunctionSymbol::Infix { precedence, .. } = symbol {
+                if let Some(infix) = &symbol.infix {
                     let expression = format!(
                         "{}{}{}",
                         arguments[0].to_relaxed_syntax(Some(symbol)),
@@ -154,12 +193,12 @@ impl Term {
                         arguments[1].to_relaxed_syntax(Some(symbol))
                     );
 
-                    if let Some(FunctionSymbol::Infix {
-                        precedence: parent_precedence,
+                    if let Some(FunctionSymbol {
+                        infix: Some(parent_infix),
                         ..
                     }) = parent
                     {
-                        if parent_precedence > precedence {
+                        if parent_infix.precedence > infix.precedence {
                             return format!("({})", expression);
                         }
                     }
@@ -306,6 +345,45 @@ pub enum Formula {
 }
 
 impl Formula {
+    pub fn get_tree(&self) -> Tree<String> {
+        match self {
+            Formula::Tautology => Tree::new("⊤".to_owned()),
+            Formula::Contradiction => Tree::new("⊥".to_owned()),
+            Formula::PredicateApplication {
+                predicate,
+                arguments,
+                ..
+            } => Tree::new(predicate.clone()).with_leaves(arguments.iter().map(Term::get_tree)),
+            Formula::Negation(formula) => {
+                Tree::new("¬".to_owned()).with_leaves(vec![formula.get_tree()])
+            }
+            Formula::Conjunction(left, right)
+            | Formula::Disjunction(left, right)
+            | Formula::Implication(left, right)
+            | Formula::Equivalence(left, right) => Tree::new(
+                match self {
+                    Formula::Conjunction(..) => "∧",
+                    Formula::Disjunction(..) => "∨",
+                    Formula::Implication(..) => "⇒",
+                    Formula::Equivalence(..) => "⇔",
+                    _ => unreachable!(),
+                }
+                .to_owned(),
+            )
+            .with_leaves(vec![left.get_tree(), right.get_tree()]),
+            Formula::UniversalQuantification(variable, formula)
+            | Formula::ExistentialQuantification(variable, formula) => Tree::new(
+                match self {
+                    Formula::UniversalQuantification(..) => "∀",
+                    Formula::ExistentialQuantification(..) => "∃",
+                    _ => unreachable!(),
+                }
+                .to_owned(),
+            )
+            .with_leaves(vec![Tree::new(variable.0.clone()), formula.get_tree()]),
+        }
+    }
+
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
@@ -748,6 +826,13 @@ pub enum Expression {
 }
 
 impl Expression {
+    pub fn get_tree(&self) -> Tree<String> {
+        match self {
+            Expression::Term(term) => term.get_tree(),
+            Expression::Formula(formula) => formula.get_tree(),
+        }
+    }
+
     pub fn to_relaxed_syntax(&self) -> String {
         match self {
             Expression::Term(term) => term.to_relaxed_syntax(None),

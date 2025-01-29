@@ -1,12 +1,12 @@
 use as_variant::as_variant;
 use colored::Colorize;
-use indexmap::{indexmap, indexset, IndexMap};
+use indexmap::{indexmap, indexset, IndexMap, IndexSet};
 use itertools::Itertools;
 use lcs::ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition};
 use lcs::explanation::Explanation;
 use lcs::markdown::Markdown;
 use lcs::parser::parse_proposition;
-use lcs::predicate_logic::parser::{parse_expression, Signature};
+use lcs::predicate_logic::parser::{parse_expression, parse_formula, Signature};
 use lcs::predicate_logic::prove::{Proof, ProofSituation};
 use lcs::predicate_logic::types::{
     Associativity, Expression, Formula, FunctionSymbol, PredicateSymbol,
@@ -19,17 +19,17 @@ fn get_letter(i: usize) -> char {
 fn get_common_math_signature() -> Signature {
     Signature {
         functions: indexmap! {
-            // "+".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
-            // "-".to_owned() => FunctionSymbol { arities: vec![1, 2], precedence: 1, associativity: Associativity::Left },
+            "+".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 2).prefix_arity(1),
+            "-".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 2).prefix_arity(1),
 
-            // "*".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
-            // "/".to_owned() => FunctionSymbol { arities: vec![2], precedence: 2, associativity: Associativity::Left },
+            "*".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 2),
+            "/".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 2),
 
-            // "^".to_owned() => FunctionSymbol { arities: vec![2], precedence: 3, associativity: Associativity::Right },
+            "^".to_owned() => FunctionSymbol::new().infix(Associativity::Right, 3),
 
-            // "√".to_owned() => FunctionSymbol { arities: vec![1], precedence: 4, associativity: Associativity::Left },
+            "√".to_owned() => FunctionSymbol::new().prefix_arity(1),
 
-            // "[][]".to_owned() => FunctionSymbol { arities: vec![2], precedence: 5, associativity: Associativity::Left },
+            "[][]".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 5),
         },
         predicates: indexmap! {
             "=".to_owned() => PredicateSymbol::Infix,
@@ -44,7 +44,7 @@ fn get_common_math_signature() -> Signature {
             "Q".to_owned() => PredicateSymbol::Prefix(vec![3, 2]),
             "R".to_owned() => PredicateSymbol::Prefix(vec![3]),
         },
-        is_constant: |name| {
+        is_constant_fn: |name| {
             if name == "ℕ" || name == "ℝ" {
                 return true;
             }
@@ -62,6 +62,8 @@ fn get_common_math_signature() -> Signature {
 
             false
         },
+
+        static_constants: IndexSet::new(),
     }
 }
 
@@ -887,12 +889,13 @@ fn exercise_1() {
 
     let signature = Signature {
         functions: indexmap! {
-            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+            "+".to_owned() => FunctionSymbol::new().infix(Associativity::Left, 1),
         },
         predicates: indexmap! {
             "≺".to_owned() => PredicateSymbol::Infix,
         },
-        is_constant: |_| false,
+        is_constant_fn: |_| false,
+        static_constants: IndexSet::new(),
     };
 
     let transitivity = as_variant!(
@@ -950,12 +953,13 @@ fn exercise_2() {
 
     let signature = Signature {
         functions: indexmap! {
-            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+            "+".to_owned() => FunctionSymbol::new().infix(Associativity::None, 1),
         },
         predicates: indexmap! {
             "≈".to_owned() => PredicateSymbol::Infix,
         },
-        is_constant: |_| false,
+        is_constant_fn: |_| false,
+        static_constants: IndexSet::new(),
     };
 
     let transitivity = as_variant!(
@@ -976,7 +980,7 @@ fn exercise_2() {
     .unwrap();
 
     let reflexivity = as_variant!(
-        parse_expression("∀x(x ≈ x)", &signature, &mut explanation).unwrap(),
+        parse_expression("  ", &signature, &mut explanation).unwrap(),
         Expression::Formula
     )
     .unwrap();
@@ -1021,12 +1025,13 @@ fn exercise_3() {
 
     let signature = Signature {
         functions: indexmap! {
-            "+".to_owned() => FunctionSymbol { arities: vec![2], precedence: 1, associativity: Associativity::Left },
+            "+".to_owned() => FunctionSymbol::new().infix(Associativity::None, 1),
         },
         predicates: indexmap! {
             "≺".to_owned() => PredicateSymbol::Infix,
         },
-        is_constant: |_| false,
+        is_constant_fn: |_| false,
+        static_constants: IndexSet::new(),
     };
 
     let parts = ["A ∧ W ⇒ P", "¬A ⇒ I", "¬W ⇒ M", "¬P", "E ⇒ ¬(I ∨ M)"];
@@ -1046,9 +1051,14 @@ fn exercise_3() {
 }
 
 fn main() {
-    exercise_1();
-    exercise_2();
-    exercise_3();
+    // exercise_1();
+    // exercise_2();
+    // exercise_3();
+
+    let explanation = &mut Explanation::default();
+
+    let _ = parse_formula("a = b", &get_common_math_signature(), explanation);
+    println!("{}", explanation.to_string());
 }
 
 fn proposition_to_formula(proposition: Proposition) -> Formula {
