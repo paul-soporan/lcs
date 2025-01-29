@@ -12,6 +12,8 @@ type BodycellPassThroughMethodOptions = {
   state: ColumnState;
 };
 
+const detailedProofRef = ref<InstanceType<typeof DetailedProof> | null>(null);
+
 const knowledgeBaseFormulas = ref<Array<{ formula: string }>>([]);
 const knowledgeBase = computed(() => knowledgeBaseFormulas.value.map(({ formula }) => formula));
 
@@ -44,6 +46,7 @@ const signature = computed(() => ({
           :value="knowledgeBaseFormulas"
           edit-mode="cell"
           @cell-edit-complete="(event) => (event.data.formula = event.newValue)"
+          class="border-1 border-round-lg p-3"
           :pt="{
             table: { style: 'min-width: 50rem' },
             column: {
@@ -74,13 +77,14 @@ const signature = computed(() => ({
             <ListItemForm @submit="(formula) => knowledgeBaseFormulas.push({ formula })" />
           </template>
         </DataTable>
-        <div class="flex">
-          <h3>Goal:</h3>
-          <InputText v-model="goal" placeholder="Write a goal here" class="ml-3" />
-          <h4 class="ml-8">If something goes wrong, just refresh.</h4>
+        <div class="flex gap-5 border-1 border-round-lg p-3">
+          <h3 class="ml-3">Goal</h3>
+          <InputText v-model="goal" placeholder="Write a goal here" />
+          <Button label="Prove" icon="pi pi-cog" @click="detailedProofRef?.updateProof()" />
+          <h5>If something goes fatally wrong, just refresh.</h5>
         </div>
       </div>
-      <div class="flex-1 ml-8">
+      <div class="flex-1 ml-8 border-1 border-round-lg p-3">
         <span class="flex">
           <h1>Signature</h1>
           <span class="mt-4 ml-4"
@@ -89,7 +93,7 @@ const signature = computed(() => ({
             notation (same precedence, left associative).</span
           >
         </span>
-        <div class="flex flex-row mt-3">
+        <div class="flex flex-row mt-4">
           <FloatLabel variant="on">
             <InputText v-model="functions" id="functions" />
             <label for="functions">Functions</label>
@@ -105,6 +109,6 @@ const signature = computed(() => ({
         </div>
       </div>
     </div>
-    <DetailedProof :knowledge-base :goal :signature="signature as any" />
+    <DetailedProof ref="detailedProofRef" :knowledge-base :goal :signature="signature as any" />
   </main>
 </template>
