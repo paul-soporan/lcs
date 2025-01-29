@@ -35,9 +35,9 @@ const explainedResult = ref<ProofResult | null>(null);
 
 <template>
   <div>
-    <div v-if="explainedResult !== null" class="flex flex-row">
-      <div class="flex-1" style="height: 75vh">
-        <div v-if="typeof explainedResult === 'object'">
+    <div v-if="explainedResult !== null" class="flex flex-row mt-4 border-1 border-round-lg">
+      <div class="flex-1" style="height: 53vh">
+        <div v-if="typeof explainedResult === 'object'" class="m-6">
           <h2>Proof</h2>
           <div v-if="'Ok' in explainedResult.result">
             <p>
@@ -71,7 +71,7 @@ const explainedResult = ref<ProofResult | null>(null);
           </div>
         </div>
       </div>
-      <div class="flex-1 overflow-scroll" style="height: 75vh">
+      <div class="flex-1 overflow-scroll m-5" style="height: 53vh">
         <h2>Program Steps</h2>
         <div v-html="explainedResult.explanation" />
       </div>
