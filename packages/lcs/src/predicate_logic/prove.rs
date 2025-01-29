@@ -52,7 +52,12 @@ pub struct Proof {
 }
 
 impl Proof {
-    pub fn trim(&self) -> (Proof, IndexSet<Formula>) {
+    pub fn trim(&self) -> Proof {
+        let (proof, _) = self.trim_impl();
+        proof
+    }
+
+    fn trim_impl(&self) -> (Proof, IndexSet<Formula>) {
         fn trim_knowledge_base(proof: &mut Proof, unused_formulas: &IndexSet<Formula>) {
             proof
                 .situation
@@ -81,7 +86,7 @@ impl Proof {
                 ProofNode::Trivial => (self.clone(), step.inputs.clone()),
 
                 ProofNode::Proof(proof) => {
-                    let (mut proof, inputs) = proof.trim();
+                    let (mut proof, inputs) = proof.trim_impl();
                     if inputs.intersection(&step.outputs).count() == 0 {
                         trim_knowledge_base(&mut proof, &step.outputs);
 
@@ -102,8 +107,8 @@ impl Proof {
                 }
 
                 ProofNode::And(left, right) => {
-                    let (left_proof, left_inputs) = left.trim();
-                    let (right_proof, right_inputs) = right.trim();
+                    let (left_proof, left_inputs) = left.trim_impl();
+                    let (right_proof, right_inputs) = right.trim_impl();
 
                     let mut all_inputs = step.inputs.clone();
                     all_inputs.extend(left_inputs);
@@ -123,8 +128,8 @@ impl Proof {
                 }
 
                 ProofNode::Or(left, right) => {
-                    let (left_proof, left_inputs) = left.trim();
-                    let (right_proof, right_inputs) = right.trim();
+                    let (left_proof, left_inputs) = left.trim_impl();
+                    let (right_proof, right_inputs) = right.trim_impl();
 
                     let mut all_inputs = step.inputs.clone();
                     all_inputs.extend(left_inputs);
@@ -144,8 +149,8 @@ impl Proof {
                 }
 
                 ProofNode::Case(left, right) => {
-                    let (left_proof, left_inputs) = left.trim();
-                    let (right_proof, right_inputs) = right.trim();
+                    let (left_proof, left_inputs) = left.trim_impl();
+                    let (right_proof, right_inputs) = right.trim_impl();
 
                     let mut all_inputs = step.inputs.clone();
                     all_inputs.extend(left_inputs);

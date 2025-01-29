@@ -17,7 +17,7 @@ use lcs::{
 };
 
 fn write_proof(proof: &Proof, labels: &IndexMap<Formula, String>) {
-    let (trimmed_proof, _) = proof.trim();
+    let trimmed_proof = proof.trim();
     println!("- **Proof:**\n{}", trimmed_proof.describe(labels));
 
     let explanation = &mut Explanation::default();

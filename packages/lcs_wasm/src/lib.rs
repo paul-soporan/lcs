@@ -160,21 +160,27 @@ pub fn prove(
 
     let proof = proof_situation.build_proof();
 
-    proof.explain(explanation.subexplanation("Proving proof situation"));
+    explanation.with_subexplanation("Building proof tree", |explanation| {
+        proof.explain(explanation.subexplanation("Original proof tree"));
 
-    let description = proof.describe(&IndexMap::default());
+        let trimmed_proof = proof.trim();
 
-    let detailed_proof = DetailedProof {
-        result: match proof.result {
-            ProofResult::Proven => "proven".to_owned(),
-            ProofResult::Contradiction => "contradiction".to_owned(),
-            ProofResult::Unknown => "unknown".to_owned(),
-        },
-        description,
-    };
+        trimmed_proof.explain(explanation.subexplanation("Trimmed proof tree"));
 
-    ExplainedResult {
-        result: Ok(detailed_proof),
-        explanation: explanation.to_string(),
-    }
+        let description = trimmed_proof.describe(&IndexMap::default());
+
+        let detailed_proof = DetailedProof {
+            result: match trimmed_proof.result {
+                ProofResult::Proven => "proven".to_owned(),
+                ProofResult::Contradiction => "contradiction".to_owned(),
+                ProofResult::Unknown => "unknown".to_owned(),
+            },
+            description,
+        };
+
+        ExplainedResult {
+            result: Ok(detailed_proof),
+            explanation: explanation.to_string(),
+        }
+    })
 }
