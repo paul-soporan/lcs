@@ -6,6 +6,7 @@ import { computed, ref } from 'vue';
 import ListItemForm from '@/components/ListItemForm.vue';
 import DetailedProof from '@/components/DetailedProof.vue';
 import FloatLabel from 'primevue/floatlabel';
+import Button from 'primevue/button';
 
 type BodycellPassThroughMethodOptions = {
   state: ColumnState;
@@ -57,6 +58,18 @@ const signature = computed(() => ({
               <InputText v-model="data[field]" autofocus fluid />
             </template>
           </Column>
+          <Column>
+            <template #body="{ index }">
+              <Button
+                icon="pi pi-times"
+                class="p-button-danger"
+                outlined
+                rounded
+                size="small"
+                @click="knowledgeBaseFormulas.splice(index, 1)"
+              />
+            </template>
+          </Column>
           <template #footer>
             <ListItemForm @submit="(formula) => knowledgeBaseFormulas.push({ formula })" />
           </template>
@@ -64,6 +77,7 @@ const signature = computed(() => ({
         <div class="flex">
           <h3>Goal:</h3>
           <InputText v-model="goal" placeholder="Write a goal here" class="ml-3" />
+          <h4 class="ml-8">If something goes wrong, just refresh.</h4>
         </div>
       </div>
       <div class="flex-1 ml-8">

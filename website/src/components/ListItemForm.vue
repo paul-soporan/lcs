@@ -30,5 +30,8 @@ function onSubmit(event: Event) {
       <Button type="reset" icon="pi pi-times" severity="danger" outlined />
     </span>
   </form>
-  <Button v-else @click="isShown = true" label="Add formula" icon="pi pi-plus" outlined />
+  <div v-else class="flex">
+    <Button @click="isShown = true" label="Add formula" icon="pi pi-plus" outlined />
+    <h4 class="ml-8">Hint: Cells are editable.</h4>
+  </div>
 </template>

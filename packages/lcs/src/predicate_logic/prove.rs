@@ -319,6 +319,40 @@ impl Proof {
                             ));
                         }
                     }
+                    ProofNode::And(left, right) => {
+                        description.push_str(&format!(
+                            "Proving {} {}:\n",
+                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
+                            pretty_label(&labels[&step.outputs[0]], true)
+                        ));
+                        description +=
+                            &describe_proof(left, indent + 2, interpolate_values, labels);
+
+                        description.push_str(&format!(
+                            "Proving {} {}:\n",
+                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
+                            pretty_label(&labels[&step.outputs[1]], true)
+                        ));
+                        description +=
+                            &describe_proof(right, indent + 2, interpolate_values, labels);
+                    }
+                    ProofNode::Or(left, right) => {
+                        description.push_str(&format!(
+                            "Proving {} {}:\n",
+                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
+                            pretty_label(&labels[&step.outputs[0]], true)
+                        ));
+                        description +=
+                            &describe_proof(left, indent + 2, interpolate_values, labels);
+
+                        description.push_str(&format!(
+                            "Proving {} {}:\n",
+                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
+                            pretty_label(&labels[&step.outputs[1]], true)
+                        ));
+                        description +=
+                            &describe_proof(right, indent + 2, interpolate_values, labels);
+                    }
                     _ => {}
                 }
             }
