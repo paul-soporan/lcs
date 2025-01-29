@@ -4,8 +4,7 @@ use colored::Colorize;
 use winnow::{
     ascii::{digit0, space0},
     combinator::{
-        alt, cut_err, delimited, eof, preceded, separated, separated_foldr1, separated_pair,
-        terminated,
+        alt, delimited, eof, preceded, separated, separated_foldr1, separated_pair, terminated,
     },
     error::{ContextError, ErrMode, StrContext, StrContextValue},
     token::one_of,
@@ -17,54 +16,82 @@ use crate::{
         BinaryOperation, CompoundProposition, LogicalConsequence, LogicalEquivalence,
         NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
     },
-    evaluate::ExplainedValue,
+    explanation::Explanation,
     markdown::Markdown,
     normal_forms::Literal,
 };
 
 #[derive(Debug)]
 struct State {
-    steps: Vec<String>,
+    explanation: Explanation,
 }
 
 type Input<'a> = Stateful<&'a str, State>;
 
-fn make_parser<'a, T>(
+// fn make_parser<'a, T>(
+//     parser: impl Parser<Input<'a>, T, ContextError>,
+//     input: &'a str,
+// ) -> ExplainedValue<Result<T, String>> {
+//     let steps = Vec::new();
+//     let state = State { steps };
+//     let mut input = Stateful { input, state };
+
+//     let result = terminated(
+//         parser,
+//         describe(
+//             cut_err(
+//                 eof.void()
+//                     .context(StrContext::Expected(StrContextValue::Description(
+//                         "end of input",
+//                     ))),
+//             ),
+//             "end of input",
+//         ),
+//     )
+//     .parse_next(&mut input);
+
+//     ExplainedValue {
+//         value: result.map_err(|e| e.to_string()),
+//         steps: input.state.steps,
+//     }
+// }
+
+fn final_parser<'a, T>(
     parser: impl Parser<Input<'a>, T, ContextError>,
-    input: &'a str,
-) -> ExplainedValue<Result<T, String>> {
-    let steps = Vec::new();
-    let state = State { steps };
-    let mut input = Stateful { input, state };
+    name: &'static str,
+) -> impl FnMut(&'a str, &mut Explanation) -> Result<T, String> {
+    let mut parser = terminated(parser, eof);
 
-    let result = terminated(
-        parser,
-        describe(
-            cut_err(
-                eof.void()
-                    .context(StrContext::Expected(StrContextValue::Description(
-                        "end of input",
-                    ))),
-            ),
-            "end of input",
-        ),
-    )
-    .parse_next(&mut input);
+    move |input: &'a str, explanation: &mut Explanation| -> Result<T, String> {
+        let cloned_explanation = explanation.clone();
 
-    ExplainedValue {
-        value: result.map_err(|e| e.to_string()),
-        steps: input.state.steps,
+        let state = State {
+            explanation: cloned_explanation,
+        };
+        let mut parser_input = Stateful { input, state };
+        let result = parser
+            .parse_next(&mut parser_input)
+            // .map_err(|e| e.into_inner().unwrap().to_string())
+            .map_err(|_| format!("Failed to parse {name}: \"{input}\""));
+
+        let _ = std::mem::replace(explanation, parser_input.state.explanation);
+
+        result
     }
 }
 
 pub fn parse_clause_set(
     input: &str,
-) -> ExplainedValue<Result<BTreeSet<BTreeSet<Literal>>, String>> {
-    make_parser(clause_set, input)
+    explanation: &mut Explanation,
+) -> Result<BTreeSet<BTreeSet<Literal>>, String> {
+    final_parser(clause_set, "clause set")(input, explanation)
 }
 
-pub fn parse_clause(input: &str) -> ExplainedValue<Result<BTreeSet<Literal>, String>> {
-    make_parser(clause, input)
+pub fn parse_clause(
+    input: &str,
+    explanation: &mut Explanation,
+) -> Result<BTreeSet<Literal>, String> {
+    final_parser(clause, "clause")(input, explanation)
 }
 
 fn clause_set(input: &mut Input) -> PResult<BTreeSet<BTreeSet<Literal>>> {
@@ -95,14 +122,16 @@ fn literal(input: &mut Input) -> PResult<Literal> {
 
 pub fn parse_logical_consequence(
     input: &str,
-) -> ExplainedValue<Result<LogicalConsequence, String>> {
-    make_parser(logical_consequence, input)
+    explanation: &mut Explanation,
+) -> Result<LogicalConsequence, String> {
+    final_parser(logical_consequence, "logical consequence")(input, explanation)
 }
 
 pub fn parse_logical_equivalence(
     input: &str,
-) -> ExplainedValue<Result<LogicalEquivalence, String>> {
-    make_parser(logical_equivalence, input)
+    explanation: &mut Explanation,
+) -> Result<LogicalEquivalence, String> {
+    final_parser(logical_equivalence, "logical equivalence")(input, explanation)
 }
 
 fn logical_consequence(input: &mut Input) -> PResult<LogicalConsequence> {
@@ -124,8 +153,11 @@ fn logical_equivalence(input: &mut Input) -> PResult<LogicalEquivalence> {
         .parse_next(input)
 }
 
-pub fn parse_proposition(input: &str) -> ExplainedValue<Result<Proposition, String>> {
-    make_parser(proposition, input)
+pub fn parse_proposition(
+    input: &str,
+    explanation: &mut Explanation,
+) -> Result<Proposition, String> {
+    final_parser(proposition, "proposition")(input, explanation)
 }
 
 fn proposition(input: &mut Input) -> PResult<Proposition> {
@@ -280,17 +312,6 @@ fn spaced<'a, T>(
     delimited(space0, parser, space0)
 }
 
-fn indent(indentation: usize) -> String {
-    " ".repeat(indentation)
-}
-
-static mut INDENTATION: usize = 0;
-const INDENT_STEP: usize = 2;
-
-fn describe_str(s: impl AsRef<str>) -> String {
-    format!("{}{}", indent(unsafe { INDENTATION }), s.as_ref())
-}
-
 fn describe<'a, T: Any>(
     mut parser: impl Parser<Input<'a>, T, ContextError>,
     what: &'static str,
@@ -299,56 +320,45 @@ where
     T: Debug,
 {
     move |input| {
-        input.state.steps.push(describe_str(format!(
+        let subexplanation = input.state.explanation.subexplanation(format!(
             "Trying to parse {} at the beginning of '{}'",
             what.magenta().markdown(),
-            input.blue().markdown()
-        )));
+            input.cyan().markdown()
+        ));
 
-        unsafe { INDENTATION += INDENT_STEP };
-        let result = parser.parse_next(input);
-        unsafe { INDENTATION -= INDENT_STEP };
-
-        input.state.steps.push(describe_str(match &result {
-            Ok(result) => format!(
-                "=> {}",
-                format!("{}", {
-                    let result_any = result as &dyn Any;
-                    if let Some(p) = result_any.downcast_ref::<Proposition>() {
-                        let tree_display = p.get_tree().to_string();
-                        tree_display
-                            .trim_end()
-                            .split('\n')
-                            .enumerate()
-                            .map(|(i, line)| {
-                                format!(
-                                    "{}{}",
-                                    indent(if i == 0 {
-                                        0
-                                    } else {
-                                        unsafe { INDENTATION + INDENT_STEP + 1 }
-                                    }),
-                                    line
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    } else {
-                        format!("{:?}", result)
-                    }
-                })
-                .green()
-                .markdown()
-            ),
-            Err(e) => match e {
-                ErrMode::Backtrack(_) => format!("=> {}", "Backtrack".yellow().markdown()),
-                ErrMode::Cut(e) => format!(
-                    "=> Fatal parsing error: {}",
-                    e.to_string().replace("\n", "; ").red().markdown()
-                ),
-                ErrMode::Incomplete(_) => unimplemented!(),
+        let mut next_input = Input {
+            input: input.input,
+            state: State {
+                explanation: subexplanation.clone(),
             },
-        }));
+        };
+
+        let result = parser.parse_next(&mut next_input);
+
+        next_input
+            .state
+            .explanation
+            .with_subexplanation("Result", |explanation| match &result {
+                Ok(result) => {
+                    let result_any = result as &dyn Any;
+                    if let Some(term) = result_any.downcast_ref::<Proposition>() {
+                        explanation.use_tree(term.get_tree());
+                    } else {
+                        explanation.step(format!("{:?}", result));
+                    }
+                }
+                Err(e) => explanation.step(match e {
+                    ErrMode::Backtrack(_) => "Backtrack".yellow().markdown(),
+                    ErrMode::Cut(e) => format!(
+                        "Fatal parsing error: {}",
+                        e.to_string().replace("\n", "; ").red().markdown()
+                    ),
+                    ErrMode::Incomplete(_) => unimplemented!(),
+                }),
+            });
+
+        let _ = std::mem::replace(subexplanation, next_input.state.explanation);
+        input.input = next_input.input;
 
         result
     }

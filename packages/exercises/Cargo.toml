@@ -5,6 +5,7 @@ edition = "2021"
 [dependencies]
 as_variant = "1.2.0"
 colored = "2.1.0"
+filepath = "0.2.0"
 indexmap = "2.6.0"
 itertools = "0.13.0"
 lcs = { path = "../lcs" }
