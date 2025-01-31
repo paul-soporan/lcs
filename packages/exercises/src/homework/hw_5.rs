@@ -59,6 +59,8 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
     for (i, (function_name, function)) in test_cases.iter().enumerate() {
         println!("### {}) {function_name}", get_letter(i));
 
+        println!("- Building DNF and CNF from specification table");
+
         let dnf = function.get_disjunctive_normal_form();
         println!(
             "- Original DNF: {}",
@@ -77,6 +79,8 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         );
         let original_cnf_component = Component::from(cnf.clone());
         original_cnf_circuit.components.push(original_cnf_component);
+
+        println!("- Simplifying DNF and CNF using the Blake Canonical Form");
 
         let simplified_dnf = get_bcf(&cnf);
 
@@ -112,6 +116,8 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
             cnf_component
         };
 
+        println!("- Transforming n-ary gates into binary gates using associativity");
+
         println!(
             "- Transformed: {}",
             component.to_string().green().markdown()
@@ -119,11 +125,15 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
 
         simplified_circuit.components.push(component.clone());
 
-        let nand_only_component = into_nand_only_component(component);
+        let mut explanation = Explanation::default();
+
+        let nand_only_component = into_nand_only_component(component, &mut explanation);
         println!(
             "- Nand-only proposition: {}",
             nand_only_component.to_string().green().markdown()
         );
+
+        println!("{}", explanation);
 
         nand_only_circuit.components.push(nand_only_component);
 

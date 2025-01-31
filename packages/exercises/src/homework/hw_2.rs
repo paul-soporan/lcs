@@ -4,7 +4,7 @@ use lcs::{
     propositional_logic::{
         ast::{CompoundProposition, NaryOperation},
         evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation},
-        parser::parse_proposition,
+        strict_parser::parse_proposition_strict,
     },
 };
 
@@ -23,7 +23,7 @@ fn exercise_1() {
 
     let mut parts = parts
         .iter()
-        .map(|part| parse_proposition(part, &mut Explanation::default()).unwrap())
+        .map(|part| parse_proposition_strict(part, &mut Explanation::default()).unwrap())
         .collect::<Vec<_>>();
 
     println!();
@@ -76,7 +76,7 @@ fn exercise_2() {
 
         println!("Input: {}\n", input.blue());
 
-        let result = parse_proposition(input, &mut Explanation::default());
+        let result = parse_proposition_strict(input, &mut Explanation::default());
         println!();
 
         match result {
@@ -139,7 +139,7 @@ fn exercise_3() {
 
         println!("Input: {}\n", input.blue());
 
-        let result = parse_proposition(input, &mut Explanation::default());
+        let result = parse_proposition_strict(input, &mut Explanation::default());
         println!();
 
         match result {

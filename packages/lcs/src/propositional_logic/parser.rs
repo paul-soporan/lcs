@@ -180,7 +180,7 @@ fn equivalence(input: &mut Input) -> PResult<Proposition> {
                 .into()
             },
         ),
-        "equivalence",
+        "equivalence or formula without equivalences",
     )
     .parse_next(input)
 }
@@ -199,7 +199,7 @@ fn implication(input: &mut Input) -> PResult<Proposition> {
                 .into()
             },
         ),
-        "implication",
+        "implication or formula without implications or equivalences",
     )
     .parse_next(input)
 }
@@ -239,7 +239,7 @@ fn conjunction_or_disjunction(input: &mut Input) -> PResult<Proposition> {
                 .into()
             },
         ),
-        "conjunction or disjunction",
+        "conjunction or disjunction or formula without binary/nary logical connectives",
     )
     .parse_next(input)
 }

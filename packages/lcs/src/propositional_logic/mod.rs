@@ -7,3 +7,4 @@ pub mod parser;
 pub mod reduce;
 pub mod resolver;
 pub mod simplify;
+pub mod strict_parser;

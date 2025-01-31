@@ -6,7 +6,8 @@ use lcs::{
     explanation::Explanation,
     markdown::Markdown,
     predicate_logic::{
-        parser::{parse_expression, Signature},
+        parser::Signature,
+        strict_parser::parse_expression_strict,
         types::{Expression, FunctionSymbol, PredicateSymbol},
     },
     propositional_logic::{
@@ -325,7 +326,12 @@ fn exercise_3() {
 
         println!("- **Input:** {}", input.magenta().markdown());
 
-        let expression = parse_expression(input, &signature, &mut Explanation::default());
+        let mut explanation = Explanation::default();
+
+        let expression = parse_expression_strict(input, &signature, &mut explanation);
+
+        println!("{}", explanation);
+
         match expression {
             Ok(expression) => {
                 println!("- **{}**", "Valid expression".green().markdown());
