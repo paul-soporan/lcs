@@ -384,6 +384,25 @@ impl Formula {
         }
     }
 
+    pub fn contains_variable(&self, variable: &Variable) -> bool {
+        match self {
+            Formula::Tautology | Formula::Contradiction => false,
+            Formula::PredicateApplication { arguments, .. } => arguments
+                .iter()
+                .any(|argument| argument.contains_variable(variable)),
+            Formula::Negation(f) => f.contains_variable(variable),
+            Formula::Conjunction(left, right)
+            | Formula::Disjunction(left, right)
+            | Formula::Implication(left, right)
+            | Formula::Equivalence(left, right) => {
+                left.contains_variable(variable) || right.contains_variable(variable)
+            }
+            Formula::UniversalQuantification(_, f) | Formula::ExistentialQuantification(_, f) => {
+                f.contains_variable(variable)
+            }
+        }
+    }
+
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
@@ -514,8 +533,15 @@ impl Formula {
                     explanation.step(format!("{} is bound (protected) -> substitutable", v));
                     true
                 } else {
-                    let contains_variable = term.contains_variable(v);
-                    if contains_variable {
+                    if !f.contains_variable(variable) {
+                        explanation.step(
+                            "Subformula does not contain variable -> substitutable".to_owned(),
+                        );
+
+                        return true;
+                    }
+
+                    if term.contains_variable(v) {
                         explanation.step(format!("{} is free in term -> not substitutable ", v));
 
                         return false;
