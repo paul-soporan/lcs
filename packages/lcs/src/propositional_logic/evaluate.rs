@@ -165,24 +165,60 @@ impl Evaluate for CompoundProposition {
             CompoundProposition::NaryOperation {
                 operation,
                 propositions,
-            } => match operation {
-                NaryOperation::Conjunction => ExplainedValue {
-                    value: TruthValue(
-                        propositions
+            } => {
+                let evaluations = propositions.iter().map(|p| p.evaluate(interpretation));
+
+                let value = match operation {
+                    NaryOperation::Conjunction => {
+                        evaluations.clone().fold(true, |acc, e| acc && e.value.0)
+                    }
+                    NaryOperation::Disjunction => {
+                        evaluations.clone().fold(false, |acc, e| acc || e.value.0)
+                    }
+                };
+
+                let operation = match operation {
+                    NaryOperation::Conjunction => "∧",
+                    NaryOperation::Disjunction => "∨",
+                };
+
+                let max_steps_len = evaluations.clone().fold(0, |acc, e| acc.max(e.steps.len()));
+
+                // Pad each vector with its last element to make them the same length.
+                let steps = evaluations
+                    .into_iter()
+                    .map(|e| {
+                        e.steps
                             .iter()
-                            .all(|p| p.evaluate(interpretation).value.0),
-                    ),
-                    steps: vec![],
-                },
-                NaryOperation::Disjunction => ExplainedValue {
-                    value: TruthValue(
-                        propositions
-                            .iter()
-                            .any(|p| p.evaluate(interpretation).value.0),
-                    ),
-                    steps: vec![],
-                },
-            },
+                            .chain(std::iter::repeat(&e.steps[e.steps.len() - 1]))
+                            .take(max_steps_len)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+
+                let mut final_steps = vec![];
+
+                for i in 0..steps[0].len() {
+                    let s = steps
+                        .iter()
+                        .map(|step| step[i].clone())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    final_steps.push(format!(
+                        "{}{}{}",
+                        format!("Ɓ{operation}(").green(),
+                        s,
+                        ")".green()
+                    ))
+                }
+
+                Evaluation {
+                    value: TruthValue(value),
+                    steps: final_steps,
+                }
+            }
         }
     }
 }
