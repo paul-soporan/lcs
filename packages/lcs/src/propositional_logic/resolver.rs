@@ -391,12 +391,12 @@ impl Resolver {
 
             for occurrences in literals.values() {
                 if occurrences.len() == 1 {
-                    let literal = occurrences.first().unwrap();
+                    let literal = occurrences.first().copied().unwrap();
                     explanation.step(format!(
                         "Found a pure literal: {}",
                         literal.to_string().green().markdown()
                     ));
-                    return Some(literal.clone().clone());
+                    return Some(literal.clone());
                 }
             }
 
