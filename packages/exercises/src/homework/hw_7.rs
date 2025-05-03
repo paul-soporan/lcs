@@ -13,7 +13,12 @@ use lcs::{
     propositional_logic::{
         normal_forms::ConjunctiveNormalForm,
         parser::{parse_clause, parse_clause_set, parse_proposition},
-        resolver::Resolver,
+        solvers::{
+            dp::DpSolver,
+            dpll::DpllSolver,
+            resolution::ResolutionSolver,
+            solve::{Solve, SolverResult},
+        },
         types::{LogicalConsequence, Proposition, PropositionalVariable},
     },
 };
@@ -45,21 +50,22 @@ fn subexercise_1() {
             consequence.to_string().blue().markdown()
         ),
         |explanation| {
-            let mut resolution_resolver =
-                Resolver::check_logical_consequence(consequence.clone(), explanation);
-            let mut dp_resolver = Resolver::check_logical_consequence(
+            let resolution_result = ResolutionSolver::check_logical_consequence(
                 consequence.clone(),
-                &mut Explanation::default(),
+                explanation.subexplanation("Resolution"),
             );
-            let mut dpll_resolver = Resolver::check_logical_consequence(
+            let dp_result = DpSolver::check_logical_consequence(
                 consequence.clone(),
-                &mut Explanation::default(),
+                explanation.subexplanation("DP"),
+            );
+            let dpll_result = DpllSolver::check_logical_consequence(
+                consequence.clone(),
+                explanation.subexplanation("DPLL"),
             );
 
-            let consequence_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let consequence_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let consequence_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
+            let consequence_resolution = resolution_result.value();
+            let consequence_dp = dp_result.value();
+            let consequence_dpll = dpll_result.value();
 
             let consequence_truth_table = consequence.check().value;
 
@@ -112,16 +118,18 @@ fn subexercise_2() {
                 cnf.to_string().blue().markdown()
             ),
             |explanation| {
-                let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
-                let mut dp_resolver =
-                    Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-                let mut dpll_resolver =
-                    Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
+                let resolution_result = ResolutionSolver::is_satisfiable(
+                    cnf.clone(),
+                    explanation.subexplanation("Resolution"),
+                );
+                let dp_result =
+                    DpSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DP"));
+                let dpll_result =
+                    DpllSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DPLL"));
 
-                let satisfiable_resolution =
-                    resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-                let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-                let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
+                let satisfiable_resolution = resolution_result.value();
+                let satisfiable_dp = dp_result.value();
+                let satisfiable_dpll = dpll_result.value();
 
                 let satisfiable_truth_table =
                     Proposition::from(cnf).get_attributes().value.satisfiable;
@@ -142,8 +150,7 @@ fn subexercise_2() {
                 );
 
                 if satisfiable_resolution {
-                    let interpretation =
-                        dpll_resolver.build_satisfying_interpretation_dpll(explanation);
+                    let interpretation = dpll_result.build_interpretation(explanation).unwrap();
 
                     println!(
                         "- **Satisfying truth valuation:** {}",
@@ -185,16 +192,17 @@ fn subexercise_3() {
             cnf.to_string().blue().markdown()
         ),
         |explanation| {
-            let mut resolution_resolver = Resolver::is_satisfiable(cnf.clone(), explanation);
-            let mut dp_resolver =
-                Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
-            let mut dpll_resolver =
-                Resolver::is_satisfiable(cnf.clone(), &mut Explanation::default());
+            let resolution_result = ResolutionSolver::is_satisfiable(
+                cnf.clone(),
+                explanation.subexplanation("Resolution"),
+            );
+            let dp_result = DpSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DP"));
+            let dpll_result =
+                DpllSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DPLL"));
 
-            let satisfiable_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let satisfiable_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let satisfiable_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
+            let satisfiable_resolution = resolution_result.value();
+            let satisfiable_dp = dp_result.value();
+            let satisfiable_dpll = dpll_result.value();
 
             let satisfiable_truth_table = Proposition::from(cnf).get_attributes().value.satisfiable;
 
@@ -214,8 +222,7 @@ fn subexercise_3() {
             );
 
             if satisfiable_resolution {
-                let interpretation =
-                    dpll_resolver.build_satisfying_interpretation_dpll(explanation);
+                let interpretation = dpll_result.build_interpretation(explanation).unwrap();
 
                 println!(
                     "- **Satisfying truth valuation:** {}",
@@ -242,16 +249,18 @@ fn subexercise_4() {
     explanation.with_subexplanation(
         format!("Checking validity for {}", formula.blue().markdown()),
         |explanation| {
-            let mut resolution_resolver = Resolver::is_valid(proposition.clone(), explanation);
-            let mut dp_resolver =
-                Resolver::is_valid(proposition.clone(), &mut Explanation::default());
-            let mut dpll_resolver =
-                Resolver::is_valid(proposition.clone(), &mut Explanation::default());
+            let resolution_result = ResolutionSolver::is_valid(
+                proposition.clone(),
+                explanation.subexplanation("Resolution"),
+            );
+            let dp_result =
+                DpSolver::is_valid(proposition.clone(), explanation.subexplanation("DP"));
+            let dpll_result =
+                DpllSolver::is_valid(proposition.clone(), explanation.subexplanation("DPLL"));
 
-            let valid_resolution =
-                resolution_resolver.resolution(explanation.subexplanation("Resolution"));
-            let valid_dp = dp_resolver.dp(explanation.subexplanation("DP"));
-            let valid_dpll = dpll_resolver.dpll(explanation.subexplanation("DPLL"));
+            let valid_resolution = resolution_result.value();
+            let valid_dp = dp_result.value();
+            let valid_dpll = dpll_result.value();
 
             let valid_truth_table = Proposition::from(proposition.clone())
                 .get_attributes()

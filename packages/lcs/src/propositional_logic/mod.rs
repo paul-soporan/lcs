@@ -4,7 +4,7 @@ pub mod evaluate;
 pub mod normal_forms;
 pub mod parser;
 pub mod reduce;
-pub mod resolver;
 pub mod simplify;
+pub mod solvers;
 pub mod strict_parser;
 pub mod types;
