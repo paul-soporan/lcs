@@ -54,10 +54,7 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         let dnf = function.get_disjunctive_normal_form();
         println!(
             "- Original proposition (Disjunctive Normal Form): {}",
-            Proposition::from(dnf.clone())
-                .to_string()
-                .magenta()
-                .markdown()
+            dnf.to_string().magenta().markdown()
         );
         let original_dnf_component = Component::from(dnf);
         original_dnf_circuit.components.push(original_dnf_component);
@@ -65,7 +62,7 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         let cnf = function.get_conjunctive_normal_form();
         println!(
             "- Original proposition (Conjunctive Normal Form): {}",
-            Proposition::from(cnf.clone()).to_string().red().markdown()
+            cnf.to_string().red().markdown()
         );
         let original_cnf_component = Component::from(cnf.clone());
         original_cnf_circuit.components.push(original_cnf_component);
@@ -75,7 +72,7 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         propositions.insert(function_name, Proposition::from(bcf.clone()));
         println!(
             "- Simplified proposition: {}",
-            Proposition::from(bcf.clone()).to_string().blue().markdown()
+            bcf.to_string().blue().markdown()
         );
         let simplified_component = Component::from(bcf);
         println!(

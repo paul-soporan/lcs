@@ -62,21 +62,12 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         println!("- Building DNF and CNF from specification table");
 
         let dnf = function.get_disjunctive_normal_form();
-        println!(
-            "- Original DNF: {}",
-            Proposition::from(dnf.clone())
-                .to_string()
-                .magenta()
-                .markdown()
-        );
+        println!("- Original DNF: {}", dnf.to_string().magenta().markdown());
         let original_dnf_component = Component::from(dnf);
         original_dnf_circuit.components.push(original_dnf_component);
 
         let cnf = function.get_conjunctive_normal_form();
-        println!(
-            "- Original CNF: {}",
-            Proposition::from(cnf.clone()).to_string().red().markdown()
-        );
+        println!("- Original CNF: {}", cnf.to_string().red().markdown());
         let original_cnf_component = Component::from(cnf.clone());
         original_cnf_circuit.components.push(original_cnf_component);
 
@@ -87,20 +78,14 @@ fn process_test_cases(test_cases: &IndexMap<&str, TruthFunction<3>>) {
         propositions.insert(function_name, Proposition::from(simplified_dnf.clone()));
         println!(
             "- Simplified DNF: {}",
-            Proposition::from(simplified_dnf.clone())
-                .to_string()
-                .blue()
-                .markdown()
+            simplified_dnf.to_string().blue().markdown()
         );
 
         let simplified_cnf = ConjunctiveNormalForm::from(simplified_dnf.clone());
 
         println!(
             "- Simplified CNF: {}",
-            Proposition::from(simplified_cnf.clone())
-                .to_string()
-                .blue()
-                .markdown()
+            simplified_cnf.to_string().blue().markdown()
         );
 
         let dnf_component = Component::from(simplified_dnf);

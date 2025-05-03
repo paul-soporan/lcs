@@ -109,7 +109,7 @@ fn exercise_1() {
 
                 println!(
                     "- **Strict syntax:** {}",
-                    expression.to_string().green().markdown()
+                    expression.to_strict_syntax().green().markdown()
                 );
 
                 let mut variables_by_scope = BTreeMap::new();
@@ -217,7 +217,7 @@ fn exercise_2() {
 
         println!(
             "- **Strict syntax:** {}",
-            expression.to_string().green().markdown()
+            expression.to_strict_syntax().green().markdown()
         );
 
         let symbols = expression.get_symbols(&mut BTreeMap::new());

@@ -29,9 +29,7 @@ impl Substitution {
         if self.mapping.contains_key(variable) {
             new_substitution.name = format!(
                 "{} ∖ {{{} ← {}}}",
-                self.name,
-                variable,
-                self.mapping[variable].to_relaxed_syntax()
+                self.name, variable, self.mapping[variable]
             );
         }
 
@@ -68,7 +66,7 @@ impl Substitution {
             for (variable, term) in &other.mapping {
                 if !self.mapping.contains_key(variable) {
                     explanation.with_subexplanation("", |explanation| {
-                        explanation.step(format!("{} ← {}", variable, term.to_relaxed_syntax()));
+                        explanation.step(format!("{variable} ← {term}"));
 
                         new_substitution
                             .mapping
@@ -93,11 +91,20 @@ impl Substitution {
         new_substitution
     }
 
+    pub fn to_strict_syntax(&self) -> String {
+        let mut components = self
+            .mapping
+            .iter()
+            .map(|(variable, term)| format!("{variable} ← {}", term.to_strict_syntax()));
+
+        format!("{{{}}}", components.join(", "))
+    }
+
     pub fn to_relaxed_syntax(&self) -> String {
         let mut components = self
             .mapping
             .iter()
-            .map(|(variable, term)| format!("{} ← {}", variable, term.to_relaxed_syntax()));
+            .map(|(variable, term)| format!("{variable} ← {}", term.to_relaxed_syntax()));
 
         format!("{{{}}}", components.join(", "))
     }
@@ -105,12 +112,7 @@ impl Substitution {
 
 impl Display for Substitution {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut components = self
-            .mapping
-            .iter()
-            .map(|(variable, term)| format!("{} ← {}", variable, term));
-
-        write!(f, "{{{}}}", components.join(", "))
+        write!(f, "{}", self.to_relaxed_syntax())
     }
 }
 

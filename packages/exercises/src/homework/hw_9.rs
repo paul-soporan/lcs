@@ -104,7 +104,7 @@ fn exercise_1() {
 
         println!(
             "- **Result:** {}",
-            expression.to_relaxed_syntax().green().markdown()
+            expression.to_string().green().markdown()
         );
 
         println!("- **Explanation:**\n{}", explanation.to_string());
@@ -150,7 +150,7 @@ fn exercise_2() {
     println!(
         "- **θσ =** {}",
         (theta.compose(&sigma, explanation))
-            .to_relaxed_syntax()
+            .to_string()
             .green()
             .markdown()
     );
@@ -163,7 +163,7 @@ fn exercise_2() {
         "- **θλ =** {}",
         theta
             .compose(&lambda, explanation)
-            .to_relaxed_syntax()
+            .to_string()
             .green()
             .markdown()
     );
@@ -176,7 +176,7 @@ fn exercise_2() {
         "- **θ(σλ) =** {}",
         theta
             .compose(&sigma.compose(&lambda, explanation), explanation)
-            .to_relaxed_syntax()
+            .to_string()
             .green()
             .markdown()
     );
@@ -190,7 +190,7 @@ fn exercise_2() {
         theta
             .compose(&sigma, explanation)
             .compose(&lambda, explanation)
-            .to_relaxed_syntax()
+            .to_string()
             .green()
             .markdown()
     );

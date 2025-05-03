@@ -35,7 +35,7 @@ fn exercise_1() {
         .into_iter()
         .fold(first, |acc, part| Proposition::Conjunction(vec![acc, part]));
 
-    println!("Proposition: {}\n", p.to_string().blue());
+    println!("Proposition: {}\n", p.to_strict_syntax().blue());
 
     let interpretation = Interpretation::generate_all(p.get_variables().value)
         .nth(6)

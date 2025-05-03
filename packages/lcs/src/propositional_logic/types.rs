@@ -6,6 +6,7 @@ use std::{
 
 use colored::{Color, Colorize};
 use indexmap::{IndexMap, IndexSet};
+use itertools::Itertools;
 use termtree::Tree;
 
 use crate::{
@@ -40,6 +41,12 @@ pub struct PropositionAttributes {
 impl From<PropositionalVariable> for Proposition {
     fn from(p: PropositionalVariable) -> Self {
         Proposition::Atomic(p)
+    }
+}
+
+impl Display for PropositionalVariable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -247,52 +254,131 @@ impl Proposition {
             steps,
         }
     }
-}
 
-impl Display for PropositionalVariable {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+    pub fn to_strict_syntax(&self) -> String {
+        match self {
+            Proposition::Tautology => '⊤'.to_string(),
+            Proposition::Contradiction => '⊥'.to_string(),
+            Proposition::Atomic(p) => p.to_string(),
+            Proposition::Negation(p) => format!("(¬{})", p.to_strict_syntax()),
+            Proposition::Implication(left, right) => {
+                format!(
+                    "({} ⇒ {})",
+                    left.to_strict_syntax(),
+                    right.to_strict_syntax()
+                )
+            }
+            Proposition::Equivalence(left, right) => {
+                format!(
+                    "({} ⇔ {})",
+                    left.to_strict_syntax(),
+                    right.to_strict_syntax()
+                )
+            }
+            Proposition::Conjunction(propositions) => {
+                let propositions = propositions
+                    .iter()
+                    .map(|p| p.to_strict_syntax())
+                    .collect::<Vec<_>>();
+
+                match propositions.len() {
+                    0 => '⊤'.to_string(),
+                    1 => propositions[0].clone(),
+                    _ => format!("({})", propositions.join(" ∧ ")),
+                }
+            }
+            Proposition::Disjunction(propositions) => {
+                let propositions = propositions
+                    .iter()
+                    .map(|p| p.to_strict_syntax())
+                    .collect::<Vec<_>>();
+
+                match propositions.len() {
+                    0 => '⊥'.to_string(),
+                    1 => propositions[0].clone(),
+                    _ => format!("({})", propositions.join(" ∨ ")),
+                }
+            }
+        }
+    }
+
+    // TODO: Make relaxed syntax respect associativity.
+    fn to_relaxed_syntax_impl(&self, parent: Option<&str>) -> String {
+        let symbol = self.symbol();
+
+        match self {
+            Proposition::Tautology | Proposition::Contradiction | Proposition::Atomic(_) => {
+                symbol.to_string()
+            }
+
+            Proposition::Negation(p) => {
+                format!("{symbol}{}", p.to_relaxed_syntax_impl(Some(symbol)))
+            }
+
+            Proposition::Conjunction(propositions) => {
+                let conjunction = propositions
+                    .iter()
+                    .map(|p| p.to_relaxed_syntax_impl(Some(symbol)))
+                    .join(&format!(" {symbol} "));
+
+                if let Some("¬" | "∨") = parent {
+                    format!("({})", conjunction)
+                } else {
+                    conjunction
+                }
+            }
+
+            Proposition::Disjunction(propositions) => {
+                let disjunction = propositions
+                    .iter()
+                    .map(|p| p.to_relaxed_syntax_impl(Some(symbol)))
+                    .join(&format!(" {symbol} "));
+
+                if let Some("¬" | "∧") = parent {
+                    format!("({})", disjunction)
+                } else {
+                    disjunction
+                }
+            }
+
+            Proposition::Implication(left, right) => {
+                let implication = format!(
+                    "{} {symbol} {}",
+                    left.to_relaxed_syntax_impl(Some(symbol)),
+                    right.to_relaxed_syntax_impl(Some(symbol))
+                );
+
+                if let Some("¬" | "∧" | "∨") = parent {
+                    format!("({})", implication)
+                } else {
+                    implication
+                }
+            }
+
+            Proposition::Equivalence(left, right) => {
+                let equivalence = format!(
+                    "{} {symbol} {}",
+                    left.to_relaxed_syntax_impl(Some(symbol)),
+                    right.to_relaxed_syntax_impl(Some(symbol))
+                );
+
+                if let Some("¬" | "∧" | "∨" | "⇒") = parent {
+                    format!("({})", equivalence)
+                } else {
+                    equivalence
+                }
+            }
+        }
+    }
+
+    pub fn to_relaxed_syntax(&self) -> String {
+        self.to_relaxed_syntax_impl(None)
     }
 }
 
 impl Display for Proposition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Proposition::Tautology => '⊤'.to_string(),
-                Proposition::Contradiction => '⊥'.to_string(),
-                Proposition::Atomic(p) => p.to_string(),
-                Proposition::Negation(p) => format!("(¬{})", p),
-                Proposition::Implication(left, right) => format!("({} ⇒ {})", left, right),
-                Proposition::Equivalence(left, right) => format!("({} ⇔ {})", left, right),
-                Proposition::Conjunction(propositions) => {
-                    let propositions = propositions
-                        .iter()
-                        .map(|p| p.to_string())
-                        .collect::<Vec<_>>();
-
-                    match propositions.len() {
-                        0 => '⊤'.to_string(),
-                        1 => propositions[0].clone(),
-                        _ => format!("({})", propositions.join(" ∧ ")),
-                    }
-                }
-                Proposition::Disjunction(propositions) => {
-                    let propositions = propositions
-                        .iter()
-                        .map(|p| p.to_string())
-                        .collect::<Vec<_>>();
-
-                    match propositions.len() {
-                        0 => '⊥'.to_string(),
-                        1 => propositions[0].clone(),
-                        _ => format!("({})", propositions.join(" ∨ ")),
-                    }
-                }
-            }
-        )
+        write!(f, "{}", self.to_relaxed_syntax())
     }
 }
 

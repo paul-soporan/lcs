@@ -130,7 +130,7 @@ impl Term {
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax().red().markdown(),
+            self.to_string().red().markdown(),
             substitution.name
         ));
 
@@ -156,7 +156,7 @@ impl Term {
             }
         };
 
-        explanation.step(self.to_relaxed_syntax().green().markdown());
+        explanation.step(self.to_string().green().markdown());
     }
 
     pub fn with_substitution(
@@ -171,6 +171,23 @@ impl Term {
 
     pub fn is_substitutable(&self, _: &Term, _: &Variable) -> bool {
         true
+    }
+
+    pub fn to_strict_syntax(&self) -> String {
+        match self {
+            Term::Variable(v) => v.to_string(),
+            Term::Constant(c) => c.to_string(),
+            Term::FunctionApplication {
+                function,
+                arguments,
+                ..
+            } => {
+                format!(
+                    "{function}({})",
+                    arguments.iter().map(|a| a.to_strict_syntax()).join(", ")
+                )
+            }
+        }
     }
 
     fn to_relaxed_syntax_impl(&self, parent: Option<&FunctionSymbol>) -> String {
@@ -312,21 +329,7 @@ impl Term {
 
 impl Display for Term {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Term::Variable(v) => write!(f, "{v}"),
-            Term::Constant(c) => write!(f, "{c}"),
-            Term::FunctionApplication {
-                function,
-                arguments,
-                ..
-            } => {
-                write!(
-                    f,
-                    "{function}({})",
-                    arguments.iter().map(|a| a.to_string()).join(", ")
-                )
-            }
-        }
+        write!(f, "{}", self.to_relaxed_syntax())
     }
 }
 
@@ -414,7 +417,7 @@ impl Formula {
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax().red().markdown(),
+            self.to_string().red().markdown(),
             substitution.name
         ));
 
@@ -487,7 +490,7 @@ impl Formula {
             }
         }
 
-        explanation.step(self.to_relaxed_syntax().green().markdown());
+        explanation.step(self.to_string().green().markdown());
     }
 
     pub fn with_substitution(
@@ -508,9 +511,9 @@ impl Formula {
     ) -> bool {
         explanation.step(format!(
             "Checking if {} is substitutable for {} in {}",
-            term.to_relaxed_syntax().red().markdown(),
+            term.to_string().red().markdown(),
             variable.to_string().blue().markdown(),
-            self.to_relaxed_syntax().green().markdown()
+            self.to_string().green().markdown()
         ));
 
         match self {
@@ -574,10 +577,66 @@ impl Formula {
         }
     }
 
+    pub fn to_strict_syntax(&self) -> String {
+        match self {
+            Formula::Tautology => "⊤".to_owned(),
+            Formula::Contradiction => "⊥".to_owned(),
+            Formula::PredicateApplication {
+                predicate,
+                arguments,
+                ..
+            } => {
+                if arguments.is_empty() {
+                    predicate.clone()
+                } else {
+                    format!(
+                        "{predicate}({})",
+                        arguments.iter().map(|a| a.to_strict_syntax()).join(", ")
+                    )
+                }
+            }
+            Formula::Negation(formula) => format!("¬{}", formula.to_strict_syntax()),
+            Formula::Conjunction(left, right) => {
+                format!(
+                    "({} ∧ {})",
+                    left.to_strict_syntax(),
+                    right.to_strict_syntax()
+                )
+            }
+            Formula::Disjunction(left, right) => format!(
+                "({} ∨ {})",
+                left.to_strict_syntax(),
+                right.to_strict_syntax()
+            ),
+            Formula::Implication(left, right) => {
+                format!(
+                    "({} ⇒ {})",
+                    left.to_strict_syntax(),
+                    right.to_strict_syntax()
+                )
+            }
+            Formula::Equivalence(left, right) => {
+                format!(
+                    "({} ⇔ {})",
+                    left.to_strict_syntax(),
+                    right.to_strict_syntax()
+                )
+            }
+            Formula::UniversalQuantification(variable, formula) => {
+                format!("∀{variable}({})", formula.to_strict_syntax())
+            }
+            Formula::ExistentialQuantification(variable, formula) => {
+                format!("∃{variable}({})", formula.to_strict_syntax())
+            }
+        }
+    }
+
+    // TODO: Make relaxed syntax respect associativity.
     fn to_relaxed_syntax_impl(&self, parent: Option<&str>) -> String {
         match self {
             Formula::Tautology => "⊤".to_owned(),
             Formula::Contradiction => "⊥".to_owned(),
+
             Formula::PredicateApplication {
                 predicate,
                 arguments,
@@ -610,7 +669,9 @@ impl Formula {
                     )
                 }
             }
+
             Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax_impl(Some("¬"))),
+
             Formula::Conjunction(left, right) => {
                 let conjunction = format!(
                     "{} ∧ {}",
@@ -618,7 +679,7 @@ impl Formula {
                     right.to_relaxed_syntax_impl(Some("∧"))
                 );
 
-                if parent == Some("¬") {
+                if let Some("¬" | "∨") = parent {
                     format!("({})", conjunction)
                 } else {
                     conjunction
@@ -631,22 +692,39 @@ impl Formula {
                     right.to_relaxed_syntax_impl(Some("∨"))
                 );
 
-                if parent == Some("¬") {
+                if let Some("¬" | "∧") = parent {
                     format!("({})", disjunction)
                 } else {
                     disjunction
                 }
             }
-            Formula::Implication(left, right) => format!(
-                "{} ⇒ {}",
-                left.to_relaxed_syntax_impl(Some("⇒")),
-                right.to_relaxed_syntax_impl(Some("⇒"))
-            ),
-            Formula::Equivalence(left, right) => format!(
-                "{} ⇔ {}",
-                left.to_relaxed_syntax_impl(Some("⇔")),
-                right.to_relaxed_syntax_impl(Some("⇔"))
-            ),
+            Formula::Implication(left, right) => {
+                let implication = format!(
+                    "{} ⇒ {}",
+                    left.to_relaxed_syntax_impl(Some("⇒")),
+                    right.to_relaxed_syntax_impl(Some("⇒"))
+                );
+
+                if let Some("¬" | "∧" | "∨") = parent {
+                    format!("({})", implication)
+                } else {
+                    implication
+                }
+            }
+            Formula::Equivalence(left, right) => {
+                let equivalence = format!(
+                    "{} ⇔ {}",
+                    left.to_relaxed_syntax_impl(Some("⇔")),
+                    right.to_relaxed_syntax_impl(Some("⇔"))
+                );
+
+                if let Some("¬" | "∧" | "∨" | "⇒") = parent {
+                    format!("({})", equivalence)
+                } else {
+                    equivalence
+                }
+            }
+
             Formula::UniversalQuantification(variable, formula) => {
                 format!(
                     "∀{}({})",
@@ -828,36 +906,7 @@ impl Formula {
 
 impl Display for Formula {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Formula::Tautology => write!(f, "⊤"),
-            Formula::Contradiction => write!(f, "⊥"),
-            Formula::PredicateApplication {
-                predicate,
-                arguments,
-                ..
-            } => {
-                if arguments.is_empty() {
-                    write!(f, "{}", predicate)
-                } else {
-                    write!(
-                        f,
-                        "{predicate}({})",
-                        arguments.iter().map(|a| a.to_string()).join(", ")
-                    )
-                }
-            }
-            Formula::Negation(formula) => write!(f, "¬{}", formula),
-            Formula::Conjunction(left, right) => write!(f, "({} ∧ {})", left, right),
-            Formula::Disjunction(left, right) => write!(f, "({} ∨ {})", left, right),
-            Formula::Implication(left, right) => write!(f, "({} ⇒ {})", left, right),
-            Formula::Equivalence(left, right) => write!(f, "({} ⇔ {})", left, right),
-            Formula::UniversalQuantification(variable, formula) => {
-                write!(f, "∀{variable}({formula})")
-            }
-            Formula::ExistentialQuantification(variable, formula) => {
-                write!(f, "∃{variable}({formula})")
-            }
-        }
+        write!(f, "{}", self.to_relaxed_syntax())
     }
 }
 
@@ -872,6 +921,13 @@ impl Expression {
         match self {
             Expression::Term(term) => term.get_tree(),
             Expression::Formula(formula) => formula.get_tree(),
+        }
+    }
+
+    pub fn to_strict_syntax(&self) -> String {
+        match self {
+            Expression::Term(term) => term.to_strict_syntax(),
+            Expression::Formula(formula) => formula.to_strict_syntax(),
         }
     }
 
