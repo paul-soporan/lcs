@@ -11,7 +11,7 @@ use termtree::Tree;
 use crate::{
     markdown::Markdown,
     propositional_logic::{
-        evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation, TruthValue},
+        evaluate::{Evaluation, ExplainedValue, Interpretation, TruthValue},
         normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
     },
 };

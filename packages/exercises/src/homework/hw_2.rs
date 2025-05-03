@@ -3,7 +3,7 @@ use lcs::{
     explanation::Explanation,
     propositional_logic::{
         ast::Proposition,
-        evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation},
+        evaluate::{Evaluation, ExplainedValue, Interpretation},
         strict_parser::parse_proposition_strict,
     },
 };

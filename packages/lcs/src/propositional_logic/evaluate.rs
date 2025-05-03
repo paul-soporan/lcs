@@ -65,27 +65,8 @@ pub struct ExplainedValue<T> {
 
 pub type Evaluation = ExplainedValue<TruthValue>;
 
-pub trait Evaluate {
-    fn evaluate(&self, interpretation: &Interpretation) -> Evaluation;
-}
-
-impl Evaluate for PropositionalVariable {
-    fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
-        let value = *interpretation.0.get(self).unwrap();
-        Evaluation {
-            value,
-            steps: vec![format!(
-                "{}{}{}",
-                "I(".magenta(),
-                self.0.to_string().cyan(),
-                ")".magenta()
-            )],
-        }
-    }
-}
-
-impl Evaluate for Proposition {
-    fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
+impl Proposition {
+    pub fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
         let Evaluation { value, mut steps } = match self {
             Proposition::Tautology => Evaluation {
                 value: TruthValue(true),
@@ -95,13 +76,21 @@ impl Evaluate for Proposition {
                 value: TruthValue(false),
                 steps: vec![],
             },
-            Proposition::Atomic(p) => p.evaluate(interpretation),
+
+            Proposition::Atomic(p) => Evaluation {
+                value: *interpretation.0.get(p).unwrap(),
+                steps: vec![format!(
+                    "{}{}{}",
+                    "I(".magenta(),
+                    p.0.to_string().cyan(),
+                    ")".magenta()
+                )],
+            },
 
             Proposition::Negation(p) => {
                 let Evaluation { value, steps } = p.evaluate(interpretation);
-                let value = !value.0;
                 Evaluation {
-                    value: TruthValue(value),
+                    value: TruthValue(!value.0),
                     steps: steps
                         .iter()
                         .map(|s| format!("{}{s}{}", "Ɓ¬(".green(), ")".green()))
