@@ -34,10 +34,6 @@ fn get_common_math_signature() -> Signature {
             "⩾".to_owned() => PredicateSymbol::Infix,
 
             "∈".to_owned() => PredicateSymbol::Infix,
-
-            // "P".to_owned() => PredicateSymbol::Prefix(vec![2]),
-            // "Q".to_owned() => PredicateSymbol::Prefix(vec![3, 2]),
-            // "R".to_owned() => PredicateSymbol::Prefix(vec![3]),
         },
         is_constant_fn: |name| {
             if name == "ℕ" || name == "ℝ" {

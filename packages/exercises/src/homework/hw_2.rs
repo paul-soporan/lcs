@@ -2,9 +2,9 @@ use colored::Colorize;
 use lcs::{
     explanation::Explanation,
     propositional_logic::{
-        ast::Proposition,
         evaluate::{Evaluation, ExplainedValue, Interpretation},
         strict_parser::parse_proposition_strict,
+        types::Proposition,
     },
 };
 

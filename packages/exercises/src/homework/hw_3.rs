@@ -4,9 +4,9 @@ use lcs::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{LogicalConsequence, PropositionalVariable, TruthTable},
         evaluate::ExplainedValue,
         parser::{parse_logical_consequence, parse_logical_equivalence, parse_proposition},
+        types::{LogicalConsequence, PropositionalVariable, TruthTable},
     },
 };
 

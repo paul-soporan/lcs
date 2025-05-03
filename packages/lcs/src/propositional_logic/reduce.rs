@@ -3,7 +3,7 @@ use colored::Colorize;
 use crate::{
     explanation::Explanation,
     markdown::Markdown,
-    propositional_logic::{ast::Proposition, simplify::law},
+    propositional_logic::{simplify::law, types::Proposition},
 };
 
 pub fn reduce_proposition(proposition: &Proposition, explanation: &mut Explanation) -> Proposition {

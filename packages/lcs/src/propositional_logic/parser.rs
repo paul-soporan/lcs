@@ -15,8 +15,8 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{LogicalConsequence, LogicalEquivalence, Proposition, PropositionalVariable},
         normal_forms::Literal,
+        types::{LogicalConsequence, LogicalEquivalence, Proposition, PropositionalVariable},
     },
 };
 

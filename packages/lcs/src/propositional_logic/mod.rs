@@ -1,4 +1,3 @@
-pub mod ast;
 pub mod bcf;
 pub mod circuit;
 pub mod evaluate;
@@ -8,3 +7,4 @@ pub mod reduce;
 pub mod resolver;
 pub mod simplify;
 pub mod strict_parser;
+pub mod types;

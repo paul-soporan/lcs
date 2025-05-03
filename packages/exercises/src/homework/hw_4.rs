@@ -4,10 +4,10 @@ use itertools::Itertools;
 use lcs::{
     markdown::Markdown,
     propositional_logic::{
-        ast::{Proposition, TruthFunction, TruthTable},
         bcf::get_bcf,
         circuit::{Analyze, Circuit, Component},
         evaluate::TruthValue,
+        types::{Proposition, TruthFunction, TruthTable},
     },
 };
 

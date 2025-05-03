@@ -12,9 +12,9 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{LogicalConsequence, Proposition},
         evaluate::{Interpretation, TruthValue},
         normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
+        types::{LogicalConsequence, Proposition},
     },
 };
 

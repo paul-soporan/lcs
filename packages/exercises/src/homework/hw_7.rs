@@ -11,10 +11,10 @@ use lcs::{
         types::{Expression, FunctionSymbol, PredicateSymbol},
     },
     propositional_logic::{
-        ast::{LogicalConsequence, Proposition, PropositionalVariable},
         normal_forms::ConjunctiveNormalForm,
         parser::{parse_clause, parse_clause_set, parse_proposition},
         resolver::Resolver,
+        types::{LogicalConsequence, Proposition, PropositionalVariable},
     },
 };
 

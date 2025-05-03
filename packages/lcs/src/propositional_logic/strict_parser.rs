@@ -11,7 +11,7 @@ use winnow::{
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
-use super::ast::{Proposition, PropositionalVariable};
+use super::types::{Proposition, PropositionalVariable};
 
 #[derive(Debug)]
 struct State {

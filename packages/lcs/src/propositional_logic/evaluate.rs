@@ -3,7 +3,7 @@ use std::fmt::Display;
 use colored::Colorize;
 use indexmap::IndexMap;
 
-use crate::propositional_logic::ast::{Proposition, PropositionalVariable, VariableSet};
+use crate::propositional_logic::types::{Proposition, PropositionalVariable, VariableSet};
 
 #[derive(Debug, Default)]
 pub struct Interpretation(pub IndexMap<PropositionalVariable, TruthValue>);

@@ -10,7 +10,7 @@ use lcs::{
         prove::{Proof, ProofSituation},
         types::{Expression, Formula, PredicateSymbol},
     },
-    propositional_logic::{ast::Proposition, parser::parse_proposition},
+    propositional_logic::{parser::parse_proposition, types::Proposition},
 };
 
 fn write_proof(proof: &Proof, labels: &IndexMap<Formula, String>) {

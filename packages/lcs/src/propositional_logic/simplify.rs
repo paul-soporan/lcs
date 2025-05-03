@@ -2,7 +2,9 @@ use colored::Colorize;
 use indexmap::IndexSet;
 use itertools::Itertools;
 
-use crate::{explanation::Explanation, markdown::Markdown, propositional_logic::ast::Proposition};
+use crate::{
+    explanation::Explanation, markdown::Markdown, propositional_logic::types::Proposition,
+};
 
 pub fn law(equivalence: &str) -> String {
     format!("Applying {equivalence}").green().markdown()

@@ -8,9 +8,9 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{Proposition, PropositionalVariable},
         reduce::reduce_proposition,
         simplify::{law, simplify_conjunction, simplify_disjunction, simplify_proposition},
+        types::{Proposition, PropositionalVariable},
     },
 };
 
