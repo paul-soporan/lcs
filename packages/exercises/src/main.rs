@@ -3,6 +3,7 @@ use std::{env, fs::File, io::Write, sync::Arc};
 
 use filepath::FilePath;
 
+mod experiments;
 mod homework;
 
 fn main() -> std::io::Result<()> {
@@ -15,6 +16,7 @@ fn main() -> std::io::Result<()> {
         .expect("Please specify a valid number.");
 
     match hw_number {
+        0 => experiments::run(),
         1 => homework::hw_1::run(),
         2 => homework::hw_2::run(),
         3 => homework::hw_3::run(),

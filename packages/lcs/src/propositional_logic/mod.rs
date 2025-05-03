@@ -1,5 +1,6 @@
 pub mod bcf;
 pub mod circuit;
+pub mod dimacs;
 pub mod evaluate;
 pub mod normal_forms;
 pub mod parser;
