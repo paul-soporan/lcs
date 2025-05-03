@@ -118,14 +118,16 @@ fn subexercise_2() {
                 cnf.to_string().blue().markdown()
             ),
             |explanation| {
-                let resolution_result = ResolutionSolver::is_satisfiable(
+                let resolution_result = ResolutionSolver::check_satisfiability(
                     cnf.clone(),
                     explanation.subexplanation("Resolution"),
                 );
                 let dp_result =
-                    DpSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DP"));
-                let dpll_result =
-                    DpllSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DPLL"));
+                    DpSolver::check_satisfiability(cnf.clone(), explanation.subexplanation("DP"));
+                let dpll_result = DpllSolver::check_satisfiability(
+                    cnf.clone(),
+                    explanation.subexplanation("DPLL"),
+                );
 
                 let satisfiable_resolution = resolution_result.value();
                 let satisfiable_dp = dp_result.value();
@@ -192,13 +194,14 @@ fn subexercise_3() {
             cnf.to_string().blue().markdown()
         ),
         |explanation| {
-            let resolution_result = ResolutionSolver::is_satisfiable(
+            let resolution_result = ResolutionSolver::check_satisfiability(
                 cnf.clone(),
                 explanation.subexplanation("Resolution"),
             );
-            let dp_result = DpSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DP"));
+            let dp_result =
+                DpSolver::check_satisfiability(cnf.clone(), explanation.subexplanation("DP"));
             let dpll_result =
-                DpllSolver::is_satisfiable(cnf.clone(), explanation.subexplanation("DPLL"));
+                DpllSolver::check_satisfiability(cnf.clone(), explanation.subexplanation("DPLL"));
 
             let satisfiable_resolution = resolution_result.value();
             let satisfiable_dp = dp_result.value();
@@ -249,14 +252,14 @@ fn subexercise_4() {
     explanation.with_subexplanation(
         format!("Checking validity for {}", formula.blue().markdown()),
         |explanation| {
-            let resolution_result = ResolutionSolver::is_valid(
+            let resolution_result = ResolutionSolver::check_validity(
                 proposition.clone(),
                 explanation.subexplanation("Resolution"),
             );
             let dp_result =
-                DpSolver::is_valid(proposition.clone(), explanation.subexplanation("DP"));
+                DpSolver::check_validity(proposition.clone(), explanation.subexplanation("DP"));
             let dpll_result =
-                DpllSolver::is_valid(proposition.clone(), explanation.subexplanation("DPLL"));
+                DpllSolver::check_validity(proposition.clone(), explanation.subexplanation("DPLL"));
 
             let valid_resolution = resolution_result.value();
             let valid_dp = dp_result.value();

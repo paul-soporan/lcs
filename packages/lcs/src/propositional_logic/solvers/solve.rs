@@ -66,7 +66,7 @@ pub trait Solve {
 
     fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> Self::Result;
 
-    fn is_satisfiable(
+    fn check_satisfiability(
         proposition: impl Into<Proposition>,
         explanation: &mut Explanation,
     ) -> Self::Result {
@@ -88,7 +88,7 @@ pub trait Solve {
         )
     }
 
-    fn is_valid(
+    fn check_validity(
         proposition: impl Into<Proposition>,
         explanation: &mut Explanation,
     ) -> Self::Result {
@@ -102,7 +102,8 @@ pub trait Solve {
             |explanation| {
                 let negated_proposition = proposition.negated();
 
-                let mut result = Self::is_satisfiable(negated_proposition.clone(), explanation);
+                let mut result =
+                    Self::check_satisfiability(negated_proposition.clone(), explanation);
 
                 explanation.step(format!(
                     "{} is {}, therefore {} is {}",
@@ -142,7 +143,7 @@ pub trait Solve {
                 consequence.to_string().blue().markdown()
             ),
             |explanation| {
-                let mut result = Self::is_satisfiable(proposition.clone(), explanation);
+                let mut result = Self::check_satisfiability(proposition.clone(), explanation);
 
                 explanation.step(format!(
                     "{} is {}, therefore {} is {}",
