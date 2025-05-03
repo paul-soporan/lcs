@@ -44,7 +44,7 @@ pub fn reduce_proposition(proposition: &Proposition, explanation: &mut Explanati
             format!("Reducing proposition: {}", p.to_string().blue().markdown()),
             |explanation| {
                 let result = match p {
-                    Proposition::Negation(box proposition) => Proposition::Negation(Box::new(
+                    Proposition::Negation(proposition) => Proposition::Negation(Box::new(
                         reduce_proposition(proposition, explanation.subexplanation("Negation")),
                     )),
 
@@ -69,10 +69,10 @@ pub fn reduce_proposition(proposition: &Proposition, explanation: &mut Explanati
                         })
                     }
 
-                    Proposition::Implication(box left, box right) => {
+                    Proposition::Implication(left, right) => {
                         reduce_implication(left, right, explanation)
                     }
-                    Proposition::Equivalence(box left, box right) => {
+                    Proposition::Equivalence(left, right) => {
                         reduce_equivalence(left, right, explanation)
                     }
 

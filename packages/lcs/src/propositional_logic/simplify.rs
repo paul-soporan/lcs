@@ -54,7 +54,7 @@ pub fn simplify_proposition(
             ),
             |explanation| {
                 let result = match p {
-                    Proposition::Negation(box proposition) => {
+                    Proposition::Negation(proposition) => {
                         simplify_negation(proposition, explanation.subexplanation("Negation"))
                     }
 
