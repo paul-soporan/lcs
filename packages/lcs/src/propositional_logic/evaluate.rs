@@ -173,41 +173,49 @@ impl Evaluate for Proposition {
                     _ => unreachable!(),
                 };
 
-                let max_steps_len = evaluations.clone().fold(0, |acc, e| acc.max(e.steps.len()));
+                if propositions.is_empty() {
+                    Evaluation {
+                        value: TruthValue(value),
+                        steps: vec![],
+                    }
+                } else {
+                    let max_steps_len =
+                        evaluations.clone().fold(0, |acc, e| acc.max(e.steps.len()));
 
-                // Pad each vector with its last element to make them the same length.
-                let steps = evaluations
-                    .into_iter()
-                    .map(|e| {
-                        e.steps
+                    // Pad each vector with its last element to make them the same length.
+                    let steps = evaluations
+                        .into_iter()
+                        .map(|e| {
+                            e.steps
+                                .iter()
+                                .chain(std::iter::repeat(&e.steps[e.steps.len() - 1]))
+                                .take(max_steps_len)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+
+                    let mut final_steps = vec![];
+
+                    for i in 0..steps[0].len() {
+                        let s = steps
                             .iter()
-                            .chain(std::iter::repeat(&e.steps[e.steps.len() - 1]))
-                            .take(max_steps_len)
-                            .cloned()
+                            .map(|step| step[i].clone())
                             .collect::<Vec<_>>()
-                    })
-                    .collect::<Vec<_>>();
+                            .join(", ");
 
-                let mut final_steps = vec![];
+                        final_steps.push(format!(
+                            "{}{}{}",
+                            format!("Ɓ{operation}(").green(),
+                            s,
+                            ")".green()
+                        ))
+                    }
 
-                for i in 0..steps[0].len() {
-                    let s = steps
-                        .iter()
-                        .map(|step| step[i].clone())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-
-                    final_steps.push(format!(
-                        "{}{}{}",
-                        format!("Ɓ{operation}(").green(),
-                        s,
-                        ")".green()
-                    ))
-                }
-
-                Evaluation {
-                    value: TruthValue(value),
-                    steps: final_steps,
+                    Evaluation {
+                        value: TruthValue(value),
+                        steps: final_steps,
+                    }
                 }
             }
         };
