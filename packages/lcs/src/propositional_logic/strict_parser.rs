@@ -11,10 +11,7 @@ use winnow::{
 
 use crate::{explanation::Explanation, markdown::Markdown};
 
-use super::ast::{
-    BinaryOperation, CompoundProposition, NaryOperation, Proposition, PropositionalVariable,
-    UnaryOperation,
-};
+use super::ast::{Proposition, PropositionalVariable};
 
 #[derive(Debug)]
 struct State {
@@ -59,7 +56,7 @@ fn final_parser<'a, T>(
 fn proposition(input: &mut Input) -> PResult<Proposition> {
     describe(
         alt((
-            compound_proposition.map(|p| p.into()),
+            compound_proposition,
             propositional_variable.map(|p| p.into()),
         )),
         "proposition",
@@ -67,7 +64,7 @@ fn proposition(input: &mut Input) -> PResult<Proposition> {
     .parse_next(input)
 }
 
-fn compound_proposition(input: &mut Input) -> PResult<CompoundProposition> {
+fn compound_proposition(input: &mut Input) -> PResult<Proposition> {
     delimited(
         '(',
         alt((binary_operation, negation)),
@@ -78,7 +75,7 @@ fn compound_proposition(input: &mut Input) -> PResult<CompoundProposition> {
     .parse_next(input)
 }
 
-fn binary_operation(input: &mut Input) -> PResult<CompoundProposition> {
+fn binary_operation(input: &mut Input) -> PResult<Proposition> {
     describe(
         (
             proposition,
@@ -101,24 +98,10 @@ fn binary_operation(input: &mut Input) -> PResult<CompoundProposition> {
             ),
         )
             .map(|(left, op, right)| match op {
-                '∧' => CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Conjunction,
-                    propositions: vec![left, right],
-                },
-                '∨' => CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Disjunction,
-                    propositions: vec![left, right],
-                },
-                '⇒' => CompoundProposition::BinaryOperation {
-                    operation: BinaryOperation::Implication,
-                    left,
-                    right,
-                },
-                '⇔' => CompoundProposition::BinaryOperation {
-                    operation: BinaryOperation::Equivalence,
-                    left,
-                    right,
-                },
+                '∧' => Proposition::Conjunction(vec![left, right]),
+                '∨' => Proposition::Disjunction(vec![left, right]),
+                '⇒' => Proposition::Implication(Box::new(left), Box::new(right)),
+                '⇔' => Proposition::Equivalence(Box::new(left), Box::new(right)),
                 _ => unreachable!("Invalid operator"),
             }),
         "binary operation",
@@ -126,14 +109,10 @@ fn binary_operation(input: &mut Input) -> PResult<CompoundProposition> {
     .parse_next(input)
 }
 
-fn negation(input: &mut Input) -> PResult<CompoundProposition> {
+fn negation(input: &mut Input) -> PResult<Proposition> {
     describe(
-        preceded(describe('¬', "unary logical connective"), proposition).map(|p| {
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition: p,
-            }
-        }),
+        preceded(describe('¬', "unary logical connective"), proposition)
+            .map(|p| Proposition::Negation(Box::new(p))),
         "negation",
     )
     .parse_next(input)

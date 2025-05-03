@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     fmt::{Debug, Display},
     hash::Hash,
     usize, vec,
@@ -20,160 +19,86 @@ use crate::{
 #[derive(Debug, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub struct PropositionalVariable(pub String);
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum UnaryOperation {
-    Negation,
-}
+// impl PartialEq for CompoundProposition {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (self, other) {
+//             (
+//                 CompoundProposition::Negation(proposition1),
+//                 CompoundProposition::Negation(proposition2),
+//             ) => proposition1 == proposition2,
+//             (
+//                 CompoundProposition::BinaryOperation {
+//                     operation: operation1,
+//                     left: left1,
+//                     right: right1,
+//                 },
+//                 CompoundProposition::BinaryOperation {
+//                     operation: operation2,
+//                     left: left2,
+//                     right: right2,
+//                 },
+//             ) => operation1 == operation2 && left1 == left2 && right1 == right2,
+//             (
+//                 CompoundProposition::NaryOperation {
+//                     operation: operation1,
+//                     propositions: propositions1,
+//                 },
+//                 CompoundProposition::NaryOperation {
+//                     operation: operation2,
+//                     propositions: propositions2,
+//                 },
+//             ) => {
+//                 operation1 == operation2
+//                     && propositions1.len() == propositions2.len()
+//                     && propositions1.iter().all(|p1| propositions2.contains(p1))
+//             }
+//             _ => false,
+//         }
+//     }
+// }
 
-impl Display for UnaryOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                UnaryOperation::Negation => "¬",
-            }
-        )
-    }
-}
+// impl Eq for CompoundProposition {}
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BinaryOperation {
-    Implication,
-    Equivalence,
-}
-
-impl Display for BinaryOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                BinaryOperation::Implication => "⇒",
-                BinaryOperation::Equivalence => "⇔",
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NaryOperation {
-    Conjunction,
-    Disjunction,
-}
-
-impl Display for NaryOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                NaryOperation::Conjunction => "∧",
-                NaryOperation::Disjunction => "∨",
-            }
-        )
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, Ord)]
-pub enum CompoundProposition {
-    UnaryOperation {
-        operation: UnaryOperation,
-        proposition: Proposition,
-    },
-    BinaryOperation {
-        operation: BinaryOperation,
-        left: Proposition,
-        right: Proposition,
-    },
-    NaryOperation {
-        operation: NaryOperation,
-        propositions: Vec<Proposition>,
-    },
-}
-
-impl PartialEq for CompoundProposition {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                CompoundProposition::UnaryOperation {
-                    operation: operation1,
-                    proposition: proposition1,
-                },
-                CompoundProposition::UnaryOperation {
-                    operation: operation2,
-                    proposition: proposition2,
-                },
-            ) => operation1 == operation2 && proposition1 == proposition2,
-            (
-                CompoundProposition::BinaryOperation {
-                    operation: operation1,
-                    left: left1,
-                    right: right1,
-                },
-                CompoundProposition::BinaryOperation {
-                    operation: operation2,
-                    left: left2,
-                    right: right2,
-                },
-            ) => operation1 == operation2 && left1 == left2 && right1 == right2,
-            (
-                CompoundProposition::NaryOperation {
-                    operation: operation1,
-                    propositions: propositions1,
-                },
-                CompoundProposition::NaryOperation {
-                    operation: operation2,
-                    propositions: propositions2,
-                },
-            ) => {
-                operation1 == operation2
-                    && propositions1.len() == propositions2.len()
-                    && propositions1.iter().all(|p1| propositions2.contains(p1))
-            }
-            _ => false,
-        }
-    }
-}
-
-impl Eq for CompoundProposition {}
-
-impl Hash for CompoundProposition {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self {
-            CompoundProposition::UnaryOperation {
-                operation,
-                proposition,
-            } => {
-                operation.hash(state);
-                proposition.hash(state);
-            }
-            CompoundProposition::BinaryOperation {
-                operation,
-                left,
-                right,
-            } => {
-                operation.hash(state);
-                left.hash(state);
-                right.hash(state);
-            }
-            CompoundProposition::NaryOperation {
-                operation,
-                propositions,
-            } => {
-                operation.hash(state);
-                propositions.clone().sort().hash(state);
-            }
-        }
-    }
-}
+// impl Hash for CompoundProposition {
+//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+//         match self {
+//             CompoundProposition::UnaryOperation {
+//                 operation,
+//                 proposition,
+//             } => {
+//                 operation.hash(state);
+//                 proposition.hash(state);
+//             }
+//             CompoundProposition::BinaryOperation {
+//                 operation,
+//                 left,
+//                 right,
+//             } => {
+//                 operation.hash(state);
+//                 left.hash(state);
+//                 right.hash(state);
+//             }
+//             CompoundProposition::NaryOperation {
+//                 operation,
+//                 propositions,
+//             } => {
+//                 operation.hash(state);
+//                 propositions.clone().sort().hash(state);
+//             }
+//         }
+//     }
+// }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Proposition {
     Tautology,
     Contradiction,
     Atomic(PropositionalVariable),
-    Compound(Box<CompoundProposition>),
+    Negation(Box<Proposition>),
+    Implication(Box<Proposition>, Box<Proposition>),
+    Equivalence(Box<Proposition>, Box<Proposition>),
+    Conjunction(Vec<Proposition>),
+    Disjunction(Vec<Proposition>),
 }
 
 #[derive(Debug)]
@@ -185,12 +110,6 @@ pub struct PropositionAttributes {
 impl From<PropositionalVariable> for Proposition {
     fn from(p: PropositionalVariable) -> Self {
         Proposition::Atomic(p)
-    }
-}
-
-impl From<CompoundProposition> for Proposition {
-    fn from(p: CompoundProposition) -> Self {
-        Proposition::Compound(Box::new(p))
     }
 }
 
@@ -211,37 +130,47 @@ impl Display for VariableSet {
 }
 
 impl Proposition {
-    pub fn get_tree(&self) -> Tree<String> {
+    pub fn symbol(&self) -> &str {
         match self {
-            Proposition::Tautology => Tree::new("⊤".to_string()),
-            Proposition::Contradiction => Tree::new("⊥".to_string()),
-            Proposition::Atomic(p) => Tree::new(p.to_string()),
-            Proposition::Compound(p) => {
-                let p = p.as_ref();
+            Proposition::Tautology => "⊤",
+            Proposition::Contradiction => "⊥",
+            Proposition::Atomic(p) => &p.0,
+            Proposition::Negation(_) => "¬",
+            Proposition::Implication(_, _) => "⇒",
+            Proposition::Equivalence(_, _) => "⇔",
+            Proposition::Conjunction(_) => "∧",
+            Proposition::Disjunction(_) => "∨",
+        }
+    }
 
-                match p {
-                    CompoundProposition::UnaryOperation {
-                        operation,
-                        proposition,
-                    } => Tree::new(operation.to_string()).with_leaves(vec![proposition.get_tree()]),
-                    CompoundProposition::BinaryOperation {
-                        operation,
-                        left,
-                        right,
-                    } => Tree::new(operation.to_string())
-                        .with_leaves(vec![left.get_tree(), right.get_tree()]),
-                    CompoundProposition::NaryOperation {
-                        operation,
-                        propositions,
-                    } => {
-                        let leaves = propositions
-                            .iter()
-                            .map(|p| p.get_tree())
-                            .collect::<Vec<_>>();
+    pub fn is_compound(&self) -> bool {
+        match self {
+            Proposition::Tautology | Proposition::Contradiction | Proposition::Atomic(_) => false,
+            Proposition::Negation(_)
+            | Proposition::Implication(_, _)
+            | Proposition::Equivalence(_, _)
+            | Proposition::Conjunction(_)
+            | Proposition::Disjunction(_) => true,
+        }
+    }
 
-                        Tree::new(operation.to_string()).with_leaves(leaves)
-                    }
-                }
+    pub fn negated(&self) -> Self {
+        Proposition::Negation(Box::new(self.clone()))
+    }
+
+    pub fn get_tree(&self) -> Tree<String> {
+        let symbol = self.symbol().to_owned();
+
+        match self {
+            Proposition::Tautology | Proposition::Contradiction | Proposition::Atomic(_) => {
+                Tree::new(symbol)
+            }
+            Proposition::Negation(p) => Tree::new(symbol).with_leaves(vec![p.get_tree()]),
+            Proposition::Implication(left, right) | Proposition::Equivalence(left, right) => {
+                Tree::new(symbol).with_leaves(vec![left.get_tree(), right.get_tree()])
+            }
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                Tree::new(symbol).with_leaves(propositions.iter().map(|p| p.get_tree()))
             }
         }
     }
@@ -268,57 +197,49 @@ impl Proposition {
                     steps,
                 }
             }
-            Proposition::Compound(p) => {
-                let p = p.as_ref();
+            Proposition::Negation(p) => p.get_variables(),
+            Proposition::Implication(left, right) | Proposition::Equivalence(left, right) => {
+                let ExplainedValue {
+                    value: mut variables,
+                    steps: left_steps,
+                } = left.get_variables();
+                let ExplainedValue {
+                    value: right,
+                    steps: right_steps,
+                } = right.get_variables();
 
-                match p {
-                    CompoundProposition::UnaryOperation { proposition, .. } => {
-                        proposition.get_variables()
-                    }
-                    CompoundProposition::BinaryOperation { left, right, .. } => {
-                        let ExplainedValue {
-                            value: mut variables,
-                            steps: left_steps,
-                        } = left.get_variables();
-                        let ExplainedValue {
-                            value: right,
-                            steps: right_steps,
-                        } = right.get_variables();
+                let left_variable_set = variables.to_string().red();
+                let right_variable_set = right.to_string().yellow();
 
-                        let left_variable_set = variables.to_string().red();
-                        let right_variable_set = right.to_string().yellow();
+                variables.0.extend(right.0);
 
-                        variables.0.extend(right.0);
+                let variable_set = variables.to_string().green();
 
-                        let variable_set = variables.to_string().green();
+                steps.extend(left_steps.iter().map(|step| format!("  {step}")));
+                steps.extend(right_steps.iter().map(|step| format!("  {step}")));
 
-                        steps.extend(left_steps.iter().map(|step| format!("  {step}")));
-                        steps.extend(right_steps.iter().map(|step| format!("  {step}")));
+                steps.push(format!(
+                    "=> {} = {} ∪ {}",
+                    variable_set, left_variable_set, right_variable_set
+                ));
 
-                        steps.push(format!(
-                            "=> {} = {} ∪ {}",
-                            variable_set, left_variable_set, right_variable_set
-                        ));
+                ExplainedValue {
+                    value: variables,
+                    steps,
+                }
+            }
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                let variables = propositions.iter().map(|p| p.get_variables().value.0).fold(
+                    IndexSet::new(),
+                    |mut acc, set| {
+                        acc.extend(set);
+                        acc
+                    },
+                );
 
-                        ExplainedValue {
-                            value: variables,
-                            steps,
-                        }
-                    }
-                    CompoundProposition::NaryOperation { propositions, .. } => {
-                        let variables = propositions
-                            .iter()
-                            .map(|p| p.get_variables().value.0)
-                            .fold(IndexSet::new(), |mut acc, set| {
-                                acc.extend(set);
-                                acc
-                            });
-
-                        ExplainedValue {
-                            value: VariableSet(variables),
-                            steps,
-                        }
-                    }
+                ExplainedValue {
+                    value: VariableSet(variables),
+                    steps,
                 }
             }
         }
@@ -326,29 +247,21 @@ impl Proposition {
 
     pub fn get_subformulas(&self) -> IndexSet<&Self> {
         let mut subformulas = match self {
-            Proposition::Compound(p) => {
-                let p = p.as_ref();
+            Proposition::Negation(p) => p.get_subformulas(),
+            Proposition::Implication(left, right) | Proposition::Equivalence(left, right) => {
+                let mut subformulas = left.get_subformulas();
+                subformulas.extend(right.get_subformulas());
 
-                match p {
-                    CompoundProposition::UnaryOperation { proposition, .. } => {
-                        proposition.get_subformulas()
-                    }
-                    CompoundProposition::BinaryOperation { left, right, .. } => {
-                        let mut subformulas = left.get_subformulas();
-                        subformulas.extend(right.get_subformulas());
+                subformulas
+            }
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                let mut subformulas = IndexSet::new();
 
-                        subformulas
-                    }
-                    CompoundProposition::NaryOperation { propositions, .. } => {
-                        let mut subformulas = IndexSet::new();
-
-                        for proposition in propositions {
-                            subformulas.extend(proposition.get_subformulas());
-                        }
-
-                        subformulas
-                    }
+                for proposition in propositions {
+                    subformulas.extend(proposition.get_subformulas());
                 }
+
+                subformulas
             }
             _ => IndexSet::new(),
         };
@@ -412,64 +325,6 @@ impl Display for PropositionalVariable {
     }
 }
 
-impl Display for CompoundProposition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                CompoundProposition::UnaryOperation {
-                    operation,
-                    proposition,
-                } => match operation {
-                    UnaryOperation::Negation => format!("(¬{})", proposition),
-                },
-                CompoundProposition::BinaryOperation {
-                    operation,
-                    left,
-                    right,
-                } => {
-                    match operation {
-                        BinaryOperation::Implication => format!("({} ⇒ {})", left, right),
-                        BinaryOperation::Equivalence => format!("({} ⇔ {})", left, right),
-                    }
-                }
-                CompoundProposition::NaryOperation {
-                    operation,
-                    propositions,
-                } => {
-                    match operation {
-                        NaryOperation::Conjunction => {
-                            let propositions = propositions
-                                .iter()
-                                .map(|p| p.to_string())
-                                .collect::<Vec<_>>();
-
-                            match propositions.len() {
-                                0 => '⊤'.to_string(),
-                                1 => propositions[0].clone(),
-                                _ => format!("({})", propositions.join(" ∧ ")),
-                            }
-                        }
-                        NaryOperation::Disjunction => {
-                            let propositions = propositions
-                                .iter()
-                                .map(|p| p.to_string())
-                                .collect::<Vec<_>>();
-
-                            match propositions.len() {
-                                0 => '⊥'.to_string(),
-                                1 => propositions[0].clone(),
-                                _ => format!("({})", propositions.join(" ∨ ")),
-                            }
-                        }
-                    }
-                }
-            }
-        )
-    }
-}
-
 impl Display for Proposition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -479,7 +334,33 @@ impl Display for Proposition {
                 Proposition::Tautology => '⊤'.to_string(),
                 Proposition::Contradiction => '⊥'.to_string(),
                 Proposition::Atomic(p) => p.to_string(),
-                Proposition::Compound(p) => p.to_string(),
+                Proposition::Negation(p) => format!("(¬{})", p),
+                Proposition::Implication(left, right) => format!("({} ⇒ {})", left, right),
+                Proposition::Equivalence(left, right) => format!("({} ⇔ {})", left, right),
+                Proposition::Conjunction(propositions) => {
+                    let propositions = propositions
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>();
+
+                    match propositions.len() {
+                        0 => '⊤'.to_string(),
+                        1 => propositions[0].clone(),
+                        _ => format!("({})", propositions.join(" ∧ ")),
+                    }
+                }
+                Proposition::Disjunction(propositions) => {
+                    let propositions = propositions
+                        .iter()
+                        .map(|p| p.to_string())
+                        .collect::<Vec<_>>();
+
+                    match propositions.len() {
+                        0 => '⊥'.to_string(),
+                        1 => propositions[0].clone(),
+                        _ => format!("({})", propositions.join(" ∨ ")),
+                    }
+                }
             }
         )
     }
@@ -512,11 +393,7 @@ impl TruthTable {
             subformulas.extend(p.get_subformulas());
         }
 
-        subformulas.sort_by(|a, b| match (a, b) {
-            (Proposition::Atomic(_), Proposition::Compound(_)) => Ordering::Less,
-            (Proposition::Compound(_), Proposition::Atomic(_)) => Ordering::Greater,
-            _ => Ordering::Equal,
-        });
+        subformulas.sort_by(|a, b| a.is_compound().cmp(&b.is_compound()));
 
         let interpretations = Interpretation::generate_all(variables);
 

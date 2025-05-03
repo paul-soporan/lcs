@@ -3,10 +3,7 @@ use std::fmt::Display;
 use colored::Colorize;
 use indexmap::IndexMap;
 
-use crate::propositional_logic::ast::{
-    BinaryOperation, CompoundProposition, NaryOperation, Proposition, PropositionalVariable,
-    UnaryOperation, VariableSet,
-};
+use crate::propositional_logic::ast::{Proposition, PropositionalVariable, VariableSet};
 
 #[derive(Debug, Default)]
 pub struct Interpretation(pub IndexMap<PropositionalVariable, TruthValue>);
@@ -87,17 +84,22 @@ impl Evaluate for PropositionalVariable {
     }
 }
 
-impl Evaluate for CompoundProposition {
+impl Evaluate for Proposition {
     fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
-        match self {
-            CompoundProposition::UnaryOperation {
-                operation,
-                proposition,
-            } => {
-                let Evaluation { value, steps } = proposition.evaluate(interpretation);
-                let value = match operation {
-                    UnaryOperation::Negation => !value.0,
-                };
+        let Evaluation { value, mut steps } = match self {
+            Proposition::Tautology => Evaluation {
+                value: TruthValue(true),
+                steps: vec![],
+            },
+            Proposition::Contradiction => Evaluation {
+                value: TruthValue(false),
+                steps: vec![],
+            },
+            Proposition::Atomic(p) => p.evaluate(interpretation),
+
+            Proposition::Negation(p) => {
+                let Evaluation { value, steps } = p.evaluate(interpretation);
+                let value = !value.0;
                 Evaluation {
                     value: TruthValue(value),
                     steps: steps
@@ -106,11 +108,8 @@ impl Evaluate for CompoundProposition {
                         .collect(),
                 }
             }
-            CompoundProposition::BinaryOperation {
-                operation,
-                left,
-                right,
-            } => {
+
+            Proposition::Implication(left, right) | Proposition::Equivalence(left, right) => {
                 let Evaluation {
                     value: TruthValue(l),
                     steps: l_steps,
@@ -120,14 +119,10 @@ impl Evaluate for CompoundProposition {
                     steps: r_steps,
                 } = right.evaluate(interpretation);
 
-                let value = match operation {
-                    BinaryOperation::Implication => !l || r,
-                    BinaryOperation::Equivalence => l == r,
-                };
-
-                let operation = match operation {
-                    BinaryOperation::Implication => "⇒",
-                    BinaryOperation::Equivalence => "⇔",
+                let (value, operation) = match self {
+                    Proposition::Implication(_, _) => (!l || r, "⇒"),
+                    Proposition::Equivalence(_, _) => (l == r, "⇔"),
+                    _ => unreachable!(),
                 };
 
                 let l_steps_len = l_steps.len();
@@ -162,24 +157,20 @@ impl Evaluate for CompoundProposition {
                     steps,
                 }
             }
-            CompoundProposition::NaryOperation {
-                operation,
-                propositions,
-            } => {
+
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
                 let evaluations = propositions.iter().map(|p| p.evaluate(interpretation));
 
-                let value = match operation {
-                    NaryOperation::Conjunction => {
-                        evaluations.clone().fold(true, |acc, e| acc && e.value.0)
-                    }
-                    NaryOperation::Disjunction => {
-                        evaluations.clone().fold(false, |acc, e| acc || e.value.0)
-                    }
-                };
-
-                let operation = match operation {
-                    NaryOperation::Conjunction => "∧",
-                    NaryOperation::Disjunction => "∨",
+                let (value, operation) = match self {
+                    Proposition::Conjunction(_) => (
+                        evaluations.clone().fold(true, |acc, e| acc && e.value.0),
+                        "∧",
+                    ),
+                    Proposition::Disjunction(_) => (
+                        evaluations.clone().fold(false, |acc, e| acc || e.value.0),
+                        "∨",
+                    ),
+                    _ => unreachable!(),
                 };
 
                 let max_steps_len = evaluations.clone().fold(0, |acc, e| acc.max(e.steps.len()));
@@ -219,23 +210,6 @@ impl Evaluate for CompoundProposition {
                     steps: final_steps,
                 }
             }
-        }
-    }
-}
-
-impl Evaluate for Proposition {
-    fn evaluate(&self, interpretation: &Interpretation) -> Evaluation {
-        let Evaluation { value, mut steps } = match self {
-            Proposition::Tautology => Evaluation {
-                value: TruthValue(true),
-                steps: vec![],
-            },
-            Proposition::Contradiction => Evaluation {
-                value: TruthValue(false),
-                steps: vec![],
-            },
-            Proposition::Atomic(p) => p.evaluate(interpretation),
-            Proposition::Compound(p) => p.evaluate(interpretation),
         };
 
         steps.insert(

@@ -8,9 +8,7 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{
-            CompoundProposition, NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
-        },
+        ast::{Proposition, PropositionalVariable},
         reduce::reduce_proposition,
         simplify::{law, simplify_conjunction, simplify_disjunction, simplify_proposition},
     },
@@ -32,11 +30,7 @@ impl From<Literal> for Proposition {
         if value {
             proposition
         } else {
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition,
-            }
-            .into()
+            Proposition::Negation(Box::new(proposition))
         }
     }
 }
@@ -72,173 +66,177 @@ impl NegationNormalForm {
                 proposition.to_string().blue().markdown()
             ),
             |explanation| {
-                let result =
-                    match simplify_proposition(reduce_proposition(proposition, explanation), explanation) {
-                        Proposition::Tautology => unimplemented!(),
-                        Proposition::Contradiction => unimplemented!(),
-                        Proposition::Atomic(p) => Literal(p, true).into(),
-                        Proposition::Compound(box p) => match p {
-                            CompoundProposition::NaryOperation {
-                                operation,
-                                propositions,
-                            } => {
-                                explanation.with_subexplanation(match operation {
-                                    NaryOperation::Conjunction => "Conjunction",
-                                    NaryOperation::Disjunction => "Disjunction",
+                let result = match simplify_proposition(
+                    &reduce_proposition(&proposition, explanation),
+                    explanation,
+                ) {
+                    Proposition::Tautology => unimplemented!(),
+                    Proposition::Contradiction => unimplemented!(),
+                    Proposition::Atomic(p) => Literal(p, true).into(),
 
-                                }, |explanation| {
-                                    let propositions = propositions
-                                        .into_iter()
-                                        .enumerate()
-                                        .map(|(i, p)| {
-                                            NegationNormalForm::from_proposition(
-                                                p,
-                                                explanation.subexplanation(format!(
-                                                    "Component {}",
-                                                    format!("#{i}").magenta().markdown()
-                                                )),
-                                            )
-                                        })
-                                        .collect();
-                                    match operation {
-                                        NaryOperation::Conjunction => {
-                                            match simplify_conjunction(propositions, explanation, true) {
-                                                None => NegationNormalForm::Disjunction(btreeset! {}),
-                                                Some(propositions) => NegationNormalForm::Conjunction(propositions.into_iter().collect()),
-                                            }
-                                        }
-                                        NaryOperation::Disjunction => {
-                                            match simplify_disjunction(propositions, explanation, true) {
-                                                None => NegationNormalForm::Conjunction(btreeset! {}),
-                                                Some(propositions) => NegationNormalForm::Disjunction(propositions.into_iter().collect()),
-                                            }
-                                        }
-                                    }
+                    Proposition::Conjunction(propositions) => explanation.with_subexplanation(
+                        "Conjunction",
+                        |explanation| {
+                            let propositions = propositions
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, p)| {
+                                    NegationNormalForm::from_proposition(
+                                        p,
+                                        explanation.subexplanation(format!(
+                                            "Component {}",
+                                            format!("#{i}").magenta().markdown()
+                                        )),
+                                    )
                                 })
-                            }
-
-                            CompoundProposition::UnaryOperation {
-                                operation,
-                                proposition,
-                            } => match operation {
-                                UnaryOperation::Negation => match proposition {
-                                    Proposition::Atomic(p) => Literal(p, false).into(),
-                                    Proposition::Compound(box p) => match p {
-                                        CompoundProposition::NaryOperation {
-                                            operation,
-                                            propositions,
-                                        } => {
-                                            explanation.step(
-                                                law(match operation {
-                                                    NaryOperation::Conjunction => "¬(F ∧ G) ∼ ¬F ∨ ¬G",
-                                                    NaryOperation::Disjunction => "¬(F ∨ G) ∼ ¬F ∧ ¬G",
-                                                }),
-                                            );
-
-                                            let propositions = propositions
-                                                .into_iter()
-                                                .map(|proposition| {
-                                                    Proposition::from(
-                                                        CompoundProposition::UnaryOperation {
-                                                            operation: UnaryOperation::Negation,
-                                                            proposition,
-                                                        },
-                                                    )
-                                                })
-                                                .collect::<Vec<_>>();
-
-                                            match operation {
-                                                NaryOperation::Conjunction => {
-                                                    match simplify_disjunction(
-                                                        propositions.clone(),
-                                                        explanation.subexplanation(format!(
-                                                            "Simplifying resulting disjunction: {}",
-                                                            Proposition::from(CompoundProposition::NaryOperation {
-                                                                operation: NaryOperation::Disjunction,
-                                                                propositions,
-                                                            }).to_string().red().markdown()
-                                                        )),
-                                                        true,
-                                                    ) {
-                                                        None => NegationNormalForm::Conjunction(
-                                                            btreeset! {},
-                                                        ),
-                                                        Some(propositions) => {
-                                                            explanation.with_subexplanation("Disjunction", |explanation| {
-                                                                NegationNormalForm::Disjunction(
-                                                                    propositions
-                                                                        .into_iter()
-                                                                        .enumerate()
-                                                                        .map(|(i, p)| NegationNormalForm::from_proposition(p, explanation.subexplanation(
-                                                                            format!("Component {}", format!("#{}", i).magenta().markdown())
-                                                                        )))
-                                                                        .collect(),
-                                                                )
-                                                            })
-                                                        }
-                                                    }
-                                                }
-
-                                                NaryOperation::Disjunction => {
-                                                    match simplify_conjunction(
-                                                        propositions.clone(),
-                                                        explanation.subexplanation(format!(
-                                                            "Simplifying resulting conjunction: {}",
-                                                            Proposition::from(CompoundProposition::NaryOperation {
-                                                                operation: NaryOperation::Conjunction,
-                                                                propositions,
-                                                            }).to_string().red().markdown()
-                                                        )),
-                                                        true,
-                                                    ) {
-                                                        None => NegationNormalForm::Disjunction(
-                                                            btreeset! {},
-                                                        ),
-                                                        Some(propositions) => {
-                                                            explanation.with_subexplanation("Conjunction", |explanation| {
-                                                                NegationNormalForm::Conjunction(
-                                                                    propositions
-                                                                        .into_iter()
-                                                                        .enumerate()
-                                                                        .map(|(i, p)| NegationNormalForm::from_proposition(p, explanation.subexplanation(
-                                                                            format!("Component {}", format!("#{}", i).magenta().markdown())
-                                                                        )))
-                                                                        .collect(),
-                                                                )
-                                                            })
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        CompoundProposition::BinaryOperation { .. } => {
-                                            unreachable!(
-                                                "Implications and equivalences should have been reduced."
-                                            )
-                                        }
-
-                                        CompoundProposition::UnaryOperation {
-                                            operation, ..
-                                        } => match operation {
-                                            UnaryOperation::Negation => {
-                                                unreachable!(
-                                                    "Double negation should have been simplified."
-                                                )
-                                            }
-                                        },
-                                    },
-                                    _ => unimplemented!(),
-                                },
-                            },
-
-                            CompoundProposition::BinaryOperation { .. } => {
-                                unreachable!(
-                                    "Implications and equivalences should have been reduced."
-                                )
+                                .collect::<Vec<_>>();
+                            match simplify_conjunction(&propositions, explanation, true)
+                            {
+                                None => NegationNormalForm::Disjunction(btreeset! {}),
+                                Some(propositions) => NegationNormalForm::Conjunction(
+                                    propositions.into_iter().collect(),
+                                ),
                             }
                         },
-                    };
+                    ),
+                    Proposition::Disjunction(propositions) => explanation.with_subexplanation(
+                        "Disjunction",
+                        |explanation| {
+                            let propositions = propositions
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, p)| {
+                                    NegationNormalForm::from_proposition(
+                                        p,
+                                        explanation.subexplanation(format!(
+                                            "Component {}",
+                                            format!("#{i}").magenta().markdown()
+                                        )),
+                                    )
+                                })
+                                .collect::<Vec<_>>();
+                            match simplify_disjunction(&propositions, explanation, true)
+                            {
+                                None => NegationNormalForm::Conjunction(btreeset! {}),
+                                Some(propositions) => NegationNormalForm::Disjunction(
+                                    propositions.into_iter().collect(),
+                                ),
+                            }
+                        },
+                    ),
+
+                    Proposition::Negation(box proposition) => match proposition {
+                        Proposition::Atomic(p) => Literal(p, false).into(),
+
+                        Proposition::Conjunction(propositions) => {
+                            explanation.step(law("¬(F ∧ G) ∼ ¬F ∨ ¬G"));
+
+                            let propositions = propositions
+                                .into_iter()
+                                .map(|proposition| proposition.negated())
+                                .collect::<Vec<_>>();
+
+                            match simplify_disjunction(
+                                &propositions.clone(),
+                                explanation.subexplanation(format!(
+                                    "Simplifying resulting disjunction: {}",
+                                    Proposition::Disjunction(propositions)
+                                        .to_string()
+                                        .red()
+                                        .markdown()
+                                )),
+                                true,
+                            ) {
+                                None => NegationNormalForm::Conjunction(btreeset! {}),
+                                Some(propositions) => explanation.with_subexplanation(
+                                    "Disjunction",
+                                    |explanation| {
+                                        NegationNormalForm::Disjunction(
+                                            propositions
+                                                .into_iter()
+                                                .enumerate()
+                                                .map(|(i, p)| {
+                                                    NegationNormalForm::from_proposition(
+                                                        p,
+                                                        explanation.subexplanation(format!(
+                                                            "Component {}",
+                                                            format!("#{}", i)
+                                                                .magenta()
+                                                                .markdown()
+                                                        )),
+                                                    )
+                                                })
+                                                .collect(),
+                                        )
+                                    },
+                                ),
+                            }
+                        }
+
+                        Proposition::Disjunction(propositions) => {
+                            explanation.step(law("¬(F ∨ G) ∼ ¬F ∧ ¬G"));
+
+                            let propositions = propositions
+                                .into_iter()
+                                .map(|proposition| proposition.negated())
+                                .collect::<Vec<_>>();
+
+                            match simplify_conjunction(
+                                &propositions.clone(),
+                                explanation.subexplanation(format!(
+                                    "Simplifying resulting conjunction: {}",
+                                    Proposition::Conjunction(propositions)
+                                        .to_string()
+                                        .red()
+                                        .markdown()
+                                )),
+                                true,
+                            ) {
+                                None => NegationNormalForm::Disjunction(btreeset! {}),
+                                Some(propositions) => explanation.with_subexplanation(
+                                    "Conjunction",
+                                    |explanation| {
+                                        NegationNormalForm::Conjunction(
+                                            propositions
+                                                .into_iter()
+                                                .enumerate()
+                                                .map(|(i, p)| {
+                                                    NegationNormalForm::from_proposition(
+                                                        p,
+                                                        explanation.subexplanation(format!(
+                                                            "Component {}",
+                                                            format!("#{}", i)
+                                                                .magenta()
+                                                                .markdown()
+                                                        )),
+                                                    )
+                                                })
+                                                .collect(),
+                                        )
+                                    },
+                                ),
+                            }
+                        }
+
+                        Proposition::Implication(_, _) | Proposition::Equivalence(_, _) => {
+                            unreachable!(
+                                "Implications and equivalences should have been reduced."
+                            )
+                        }
+
+                        Proposition::Negation(_) => {
+                            unreachable!("Double negation should have been simplified.")
+                        }
+
+                        Proposition::Tautology | Proposition::Contradiction => unreachable!(
+                            "Negations of tautologies and contradictions should have been simplified."
+                        ),
+                    },
+
+                    Proposition::Implication(_, _) | Proposition::Equivalence(_, _) => {
+                        unreachable!("Implications and equivalences should have been reduced.")
+                    }
+                };
 
                 explanation.step(format!("NNF: {}", result.to_string().red().markdown()));
 
@@ -258,16 +256,12 @@ impl From<NegationNormalForm> for Proposition {
     fn from(value: NegationNormalForm) -> Self {
         match value {
             NegationNormalForm::Literal(literal) => literal.into(),
-            NegationNormalForm::Conjunction(propositions) => CompoundProposition::NaryOperation {
-                operation: NaryOperation::Conjunction,
-                propositions: propositions.into_iter().map(|nnf| nnf.into()).collect(),
+            NegationNormalForm::Conjunction(propositions) => {
+                Proposition::Conjunction(propositions.into_iter().map(|nnf| nnf.into()).collect())
             }
-            .into(),
-            NegationNormalForm::Disjunction(propositions) => CompoundProposition::NaryOperation {
-                operation: NaryOperation::Disjunction,
-                propositions: propositions.into_iter().map(|nnf| nnf.into()).collect(),
+            NegationNormalForm::Disjunction(propositions) => {
+                Proposition::Disjunction(propositions.into_iter().map(|nnf| nnf.into()).collect())
             }
-            .into(),
         }
     }
 }
@@ -403,7 +397,7 @@ impl DisjunctiveNormalForm {
                     .collect::<Vec<_>>();
 
                 let disjunction = simplify_disjunction(
-                    disjunction.clone(),
+                    &disjunction.clone(),
                     explanation.subexplanation(format!(
                         "Simplifying resulting disjunction: {}",
                         NegationNormalForm::Disjunction(disjunction.into_iter().collect())
@@ -452,21 +446,20 @@ impl From<NegationNormalForm> for DisjunctiveNormalForm {
 
 impl From<DisjunctiveNormalForm> for Proposition {
     fn from(value: DisjunctiveNormalForm) -> Self {
-        CompoundProposition::NaryOperation {
-            operation: NaryOperation::Disjunction,
-            propositions: value
+        Proposition::Disjunction(
+            value
                 .0
                 .into_iter()
-                .map(|clause| {
-                    CompoundProposition::NaryOperation {
-                        operation: NaryOperation::Conjunction,
-                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
-                    }
-                    .into()
+                .map(|conjunction| {
+                    Proposition::Conjunction(
+                        conjunction
+                            .into_iter()
+                            .map(|literal| literal.into())
+                            .collect(),
+                    )
                 })
                 .collect(),
-        }
-        .into()
+        )
     }
 }
 
@@ -598,7 +591,7 @@ impl ConjunctiveNormalForm {
                     .collect::<Vec<_>>();
 
                 let conjunction = simplify_conjunction(
-                    conjunction.clone(),
+                    &conjunction.clone(),
                     explanation.subexplanation(format!(
                         "Simplifying resulting conjunction: {}",
                         NegationNormalForm::Conjunction(conjunction.into_iter().collect())
@@ -647,21 +640,17 @@ impl From<NegationNormalForm> for ConjunctiveNormalForm {
 
 impl From<ConjunctiveNormalForm> for Proposition {
     fn from(value: ConjunctiveNormalForm) -> Self {
-        CompoundProposition::NaryOperation {
-            operation: NaryOperation::Conjunction,
-            propositions: value
+        Proposition::Conjunction(
+            value
                 .0
                 .into_iter()
                 .map(|clause| {
-                    CompoundProposition::NaryOperation {
-                        operation: NaryOperation::Disjunction,
-                        propositions: clause.into_iter().map(|literal| literal.into()).collect(),
-                    }
-                    .into()
+                    Proposition::Disjunction(
+                        clause.into_iter().map(|literal| literal.into()).collect(),
+                    )
                 })
                 .collect(),
-        }
-        .into()
+        )
     }
 }
 

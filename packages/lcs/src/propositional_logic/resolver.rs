@@ -12,9 +12,7 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{
-            CompoundProposition, LogicalConsequence, NaryOperation, Proposition, UnaryOperation,
-        },
+        ast::{LogicalConsequence, Proposition},
         evaluate::{Interpretation, TruthValue},
         normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
     },
@@ -99,10 +97,7 @@ impl Resolver {
                 proposition.to_string().blue().markdown()
             ),
             |explanation| {
-                let negated_proposition = Proposition::from(CompoundProposition::UnaryOperation {
-                    operation: UnaryOperation::Negation,
-                    proposition: proposition.clone().into(),
-                });
+                let negated_proposition = proposition.negated();
 
                 Self::is_satisfiable(negated_proposition.clone(), explanation).with_result_mapper(
                     move |result, explanation| {
@@ -133,18 +128,9 @@ impl Resolver {
         explanation: &mut Explanation,
     ) -> Resolver {
         let mut propositions = consequence.premises.clone();
-        propositions.push(
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition: consequence.conclusion.clone(),
-            }
-            .into(),
-        );
+        propositions.push(consequence.conclusion.negated());
 
-        let proposition = Proposition::from(CompoundProposition::NaryOperation {
-            operation: NaryOperation::Conjunction,
-            propositions,
-        });
+        let proposition = Proposition::Conjunction(propositions);
 
         explanation.with_subexplanation(
             format!(

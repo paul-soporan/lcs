@@ -10,10 +10,7 @@ use lcs::{
         prove::{Proof, ProofSituation},
         types::{Expression, Formula, PredicateSymbol},
     },
-    propositional_logic::{
-        ast::{BinaryOperation, CompoundProposition, NaryOperation, Proposition},
-        parser::parse_proposition,
-    },
+    propositional_logic::{ast::Proposition, parser::parse_proposition},
 };
 
 fn write_proof(proof: &Proof, labels: &IndexMap<Formula, String>) {
@@ -179,11 +176,13 @@ fn exercise_3() {
 
     let premises = parts
         .map(|part| parse_proposition(part, &mut Explanation::default()).unwrap())
-        .map(|proposition| proposition_to_formula(proposition));
+        .map(|proposition| proposition_to_formula(&proposition));
 
     let proof_situation = ProofSituation {
         knowledge_base: premises.into_iter().collect(),
-        goal: proposition_to_formula(parse_proposition("¬E", &mut Explanation::default()).unwrap()),
+        goal: proposition_to_formula(
+            &parse_proposition("¬E", &mut Explanation::default()).unwrap(),
+        ),
     };
 
     let proof = proof_situation.build_proof();
@@ -197,52 +196,38 @@ pub fn run() {
     exercise_3();
 }
 
-fn proposition_to_formula(proposition: Proposition) -> Formula {
+fn proposition_to_formula(proposition: &Proposition) -> Formula {
     match proposition {
         Proposition::Atomic(variable) => Formula::PredicateApplication {
-            predicate: variable.0,
+            predicate: variable.0.clone(),
             arguments: vec![],
             symbol: PredicateSymbol::Prefix(vec![0]),
         },
-        Proposition::Compound(p) => match *p {
-            CompoundProposition::UnaryOperation { proposition, .. } => {
-                Formula::Negation(Box::new(proposition_to_formula(proposition)))
-            }
-            CompoundProposition::BinaryOperation {
-                operation,
-                left,
-                right,
-            } => match operation {
-                BinaryOperation::Implication => Formula::Implication(
-                    Box::new(proposition_to_formula(left)),
-                    Box::new(proposition_to_formula(right)),
-                ),
-                BinaryOperation::Equivalence => Formula::Equivalence(
-                    Box::new(proposition_to_formula(left)),
-                    Box::new(proposition_to_formula(right)),
-                ),
-            },
-            CompoundProposition::NaryOperation {
-                operation,
-                propositions,
-            } => {
-                let formulas = propositions
-                    .into_iter()
-                    .map(proposition_to_formula)
-                    .collect_vec();
+        Proposition::Negation(p) => Formula::Negation(Box::new(proposition_to_formula(p))),
+        Proposition::Implication(left, right) => Formula::Implication(
+            Box::new(proposition_to_formula(left)),
+            Box::new(proposition_to_formula(right)),
+        ),
+        Proposition::Equivalence(left, right) => Formula::Equivalence(
+            Box::new(proposition_to_formula(left)),
+            Box::new(proposition_to_formula(right)),
+        ),
+        Proposition::Conjunction(propositions) => {
+            let formulas = propositions
+                .into_iter()
+                .map(proposition_to_formula)
+                .collect_vec();
 
-                match operation {
-                    NaryOperation::Conjunction => Formula::Conjunction(
-                        Box::new(formulas[0].clone()),
-                        Box::new(formulas[1].clone()),
-                    ),
-                    NaryOperation::Disjunction => Formula::Disjunction(
-                        Box::new(formulas[0].clone()),
-                        Box::new(formulas[1].clone()),
-                    ),
-                }
-            }
-        },
+            Formula::Conjunction(Box::new(formulas[0].clone()), Box::new(formulas[1].clone()))
+        }
+        Proposition::Disjunction(propositions) => {
+            let formulas = propositions
+                .into_iter()
+                .map(proposition_to_formula)
+                .collect_vec();
+
+            Formula::Disjunction(Box::new(formulas[0].clone()), Box::new(formulas[1].clone()))
+        }
         _ => unimplemented!(),
     }
 }

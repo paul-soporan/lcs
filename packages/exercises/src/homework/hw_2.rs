@@ -2,7 +2,7 @@ use colored::Colorize;
 use lcs::{
     explanation::Explanation,
     propositional_logic::{
-        ast::{CompoundProposition, NaryOperation},
+        ast::Proposition,
         evaluate::{Evaluate, Evaluation, ExplainedValue, Interpretation},
         strict_parser::parse_proposition_strict,
     },
@@ -31,13 +31,9 @@ fn exercise_1() {
     let rest = parts.split_off(1);
     let first = parts.pop().unwrap();
 
-    let p = rest.into_iter().fold(first, |acc, part| {
-        CompoundProposition::NaryOperation {
-            operation: NaryOperation::Conjunction,
-            propositions: vec![acc, part],
-        }
-        .into()
-    });
+    let p = rest
+        .into_iter()
+        .fold(first, |acc, part| Proposition::Conjunction(vec![acc, part]));
 
     println!("Proposition: {}\n", p.to_string().blue());
 

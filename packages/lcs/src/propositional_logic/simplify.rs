@@ -2,22 +2,16 @@ use colored::Colorize;
 use indexmap::IndexSet;
 use itertools::Itertools;
 
-use crate::{
-    explanation::Explanation,
-    markdown::Markdown,
-    propositional_logic::ast::{CompoundProposition, NaryOperation, Proposition, UnaryOperation},
-};
+use crate::{explanation::Explanation, markdown::Markdown, propositional_logic::ast::Proposition};
 
 pub fn law(equivalence: &str) -> String {
     format!("Applying {equivalence}").green().markdown()
 }
 
-pub fn simplify_proposition<T: Into<Proposition>>(
-    proposition: T,
+pub fn simplify_proposition(
+    proposition: &Proposition,
     explanation: &mut Explanation,
 ) -> Proposition {
-    let proposition = proposition.into();
-
     match proposition {
         Proposition::Tautology => {
             explanation.step(format!(
@@ -25,7 +19,7 @@ pub fn simplify_proposition<T: Into<Proposition>>(
                 proposition.to_string().red().markdown()
             ));
 
-            proposition
+            proposition.clone()
         }
         Proposition::Contradiction => {
             explanation.step(format!(
@@ -33,7 +27,7 @@ pub fn simplify_proposition<T: Into<Proposition>>(
                 proposition.to_string().red().markdown()
             ));
 
-            proposition
+            proposition.clone()
         }
         Proposition::Atomic(p) => {
             explanation.step(format!(
@@ -41,78 +35,55 @@ pub fn simplify_proposition<T: Into<Proposition>>(
                 p.to_string().red().markdown()
             ));
 
-            p.into()
+            proposition.clone()
         }
-        Proposition::Compound(box CompoundProposition::UnaryOperation {
-            operation: UnaryOperation::Negation,
-            proposition: Proposition::Atomic(p),
-        }) => {
+        Proposition::Negation(box Proposition::Atomic(p)) => {
             explanation.step(format!(
                 "Negative literal: {}",
                 format!("¬{p}").red().markdown()
             ));
 
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition: p.into(),
-            }
-            .into()
+            proposition.clone()
         }
-        Proposition::Compound(box p) => explanation.with_subexplanation(
+        p => explanation.with_subexplanation(
             format!(
                 "Simplifying proposition: {}",
                 p.to_string().blue().markdown()
             ),
             |explanation| {
                 let result = match p {
-                    CompoundProposition::UnaryOperation {
-                        operation,
-                        proposition,
-                    } => match operation {
-                        UnaryOperation::Negation => {
-                            simplify_negation(proposition, explanation.subexplanation("Negation"))
+                    Proposition::Negation(box proposition) => {
+                        simplify_negation(proposition, explanation.subexplanation("Negation"))
+                    }
+
+                    Proposition::Conjunction(propositions) => {
+                        match simplify_conjunction(
+                            propositions,
+                            explanation.subexplanation("Conjunction"),
+                            true,
+                        ) {
+                            None => Proposition::Contradiction,
+                            Some(propositions) => match propositions.len() {
+                                1 => propositions.into_iter().next().unwrap(),
+                                _ => Proposition::Conjunction(propositions),
+                            },
                         }
-                    },
-                    CompoundProposition::NaryOperation {
-                        operation,
-                        propositions,
-                    } => match operation {
-                        NaryOperation::Conjunction => {
-                            match simplify_conjunction(
-                                propositions,
-                                explanation.subexplanation("Conjunction"),
-                                true,
-                            ) {
-                                None => Proposition::Contradiction,
-                                Some(propositions) => match propositions.len() {
-                                    1 => propositions.into_iter().next().unwrap(),
-                                    _ => CompoundProposition::NaryOperation {
-                                        operation: NaryOperation::Conjunction,
-                                        propositions,
-                                    }
-                                    .into(),
-                                },
-                            }
+                    }
+                    Proposition::Disjunction(propositions) => {
+                        match simplify_disjunction(
+                            propositions,
+                            explanation.subexplanation("Disjunction"),
+                            true,
+                        ) {
+                            None => Proposition::Tautology,
+                            Some(propositions) => match propositions.len() {
+                                1 => propositions.into_iter().next().unwrap(),
+                                _ => Proposition::Disjunction(propositions),
+                            },
                         }
-                        NaryOperation::Disjunction => {
-                            match simplify_disjunction(
-                                propositions,
-                                explanation.subexplanation("Disjunction"),
-                                true,
-                            ) {
-                                None => Proposition::Tautology,
-                                Some(propositions) => match propositions.len() {
-                                    1 => propositions.into_iter().next().unwrap(),
-                                    _ => CompoundProposition::NaryOperation {
-                                        operation: NaryOperation::Disjunction,
-                                        propositions,
-                                    }
-                                    .into(),
-                                },
-                            }
-                        }
-                    },
-                    proposition => proposition.into(),
+                    }
+
+                    proposition => proposition.clone(),
                 };
 
                 explanation.step(format!("Result: {}", result.to_string().red().markdown()));
@@ -123,8 +94,8 @@ pub fn simplify_proposition<T: Into<Proposition>>(
     }
 }
 
-pub fn simplify_conjunction<T: Into<Proposition> + From<Proposition>>(
-    propositions: Vec<T>,
+pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
+    propositions: &[T],
     explanation: &mut Explanation,
     simplify_components: bool,
 ) -> Option<Vec<T>> {
@@ -136,20 +107,17 @@ pub fn simplify_conjunction<T: Into<Proposition> + From<Proposition>>(
         .flat_map(|(i, p)| {
             let proposition = match simplify_components {
                 true => simplify_proposition(
-                    p,
+                    &p.clone().into(),
                     explanation.subexplanation(format!(
                         "Component {}",
                         format!("#{i}").magenta().markdown()
                     )),
                 ),
-                false => p.into(),
+                false => p.clone().into(),
             };
 
             match proposition {
-                Proposition::Compound(box CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Conjunction,
-                    propositions,
-                }) => propositions.into_iter(),
+                Proposition::Conjunction(propositions) => propositions.into_iter(),
                 _ => vec![proposition].into_iter(),
             }
         })
@@ -166,11 +134,7 @@ pub fn simplify_conjunction<T: Into<Proposition> + From<Proposition>>(
                 continue;
             }
             p => {
-                if let Proposition::Compound(box CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Disjunction,
-                    propositions,
-                }) = &p
-                {
+                if let Proposition::Disjunction(propositions) = &p {
                     for p in propositions {
                         if simplified.contains(p) {
                             explanation.step(law("F ∧ (F ∨ G) ∼ F"));
@@ -180,10 +144,7 @@ pub fn simplify_conjunction<T: Into<Proposition> + From<Proposition>>(
                 }
 
                 if simplified.contains(&simplify_proposition(
-                    CompoundProposition::UnaryOperation {
-                        operation: UnaryOperation::Negation,
-                        proposition: p.clone(),
-                    },
+                    &p.negated(),
                     &mut Explanation::default(),
                 )) {
                     explanation.step(law("F ∧ ¬F ∼ ⊥"));
@@ -200,8 +161,8 @@ pub fn simplify_conjunction<T: Into<Proposition> + From<Proposition>>(
     Some(simplified.into_iter().map(|p| p.into()).collect())
 }
 
-pub fn simplify_disjunction<T: Into<Proposition> + From<Proposition>>(
-    propositions: Vec<T>,
+pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
+    propositions: &[T],
     explanation: &mut Explanation,
     simplify_components: bool,
 ) -> Option<Vec<T>> {
@@ -213,20 +174,17 @@ pub fn simplify_disjunction<T: Into<Proposition> + From<Proposition>>(
         .flat_map(|(i, p)| {
             let proposition = match simplify_components {
                 true => simplify_proposition(
-                    p,
+                    &p.clone().into(),
                     explanation.subexplanation(format!(
                         "Component {}",
                         format!("#{i}").magenta().markdown()
                     )),
                 ),
-                false => p.into(),
+                false => p.clone().into(),
             };
 
             match proposition {
-                Proposition::Compound(box CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Disjunction,
-                    propositions,
-                }) => propositions.into_iter(),
+                Proposition::Disjunction(propositions) => propositions.into_iter(),
                 _ => vec![proposition].into_iter(),
             }
         })
@@ -243,11 +201,7 @@ pub fn simplify_disjunction<T: Into<Proposition> + From<Proposition>>(
                 continue;
             }
             p => {
-                if let Proposition::Compound(box CompoundProposition::NaryOperation {
-                    operation: NaryOperation::Conjunction,
-                    propositions,
-                }) = &p
-                {
+                if let Proposition::Conjunction(propositions) = &p {
                     for p in propositions {
                         if simplified.contains(p) {
                             explanation.step(law("F ∨ (F ∧ G) ∼ F"));
@@ -257,10 +211,7 @@ pub fn simplify_disjunction<T: Into<Proposition> + From<Proposition>>(
                 }
 
                 if simplified.contains(&simplify_proposition(
-                    CompoundProposition::UnaryOperation {
-                        operation: UnaryOperation::Negation,
-                        proposition: p.clone(),
-                    },
+                    &p.negated(),
                     &mut Explanation::default(),
                 )) {
                     explanation.step(law("F ∨ ¬F ∼ ⊤"));
@@ -277,8 +228,8 @@ pub fn simplify_disjunction<T: Into<Proposition> + From<Proposition>>(
     Some(simplified.into_iter().map(|p| p.into()).collect())
 }
 
-pub fn simplify_negation<T: Into<Proposition>>(
-    negated_proposition: T,
+pub fn simplify_negation(
+    negated_proposition: &Proposition,
     explanation: &mut Explanation,
 ) -> Proposition {
     match simplify_proposition(
@@ -293,17 +244,10 @@ pub fn simplify_negation<T: Into<Proposition>>(
             explanation.step(law("¬⊥ ∼ ⊤"));
             Proposition::Tautology
         }
-        Proposition::Compound(box CompoundProposition::UnaryOperation {
-            operation: UnaryOperation::Negation,
-            proposition,
-        }) => {
+        Proposition::Negation(box proposition) => {
             explanation.step(law("¬(¬F) ∼ F"));
             proposition
         }
-        proposition => CompoundProposition::UnaryOperation {
-            operation: UnaryOperation::Negation,
-            proposition,
-        }
-        .into(),
+        proposition => proposition.negated(),
     }
 }

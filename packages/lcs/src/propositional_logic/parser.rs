@@ -15,10 +15,7 @@ use crate::{
     explanation::Explanation,
     markdown::Markdown,
     propositional_logic::{
-        ast::{
-            BinaryOperation, CompoundProposition, LogicalConsequence, LogicalEquivalence,
-            NaryOperation, Proposition, PropositionalVariable, UnaryOperation,
-        },
+        ast::{LogicalConsequence, LogicalEquivalence, Proposition, PropositionalVariable},
         normal_forms::Literal,
     },
 };
@@ -171,14 +168,7 @@ fn equivalence(input: &mut Input) -> PResult<Proposition> {
         separated_foldr1(
             implication,
             spaced(describe('⇔', "equivalence logical connective")),
-            |left, _, right| {
-                CompoundProposition::BinaryOperation {
-                    operation: BinaryOperation::Equivalence,
-                    left,
-                    right,
-                }
-                .into()
-            },
+            |left, _, right| Proposition::Equivalence(Box::new(left), Box::new(right)),
         ),
         "equivalence or formula without equivalences",
     )
@@ -190,14 +180,7 @@ fn implication(input: &mut Input) -> PResult<Proposition> {
         separated_foldr1(
             conjunction_or_disjunction,
             spaced(describe('⇒', "implication logical connective")),
-            |left, _, right| {
-                CompoundProposition::BinaryOperation {
-                    operation: BinaryOperation::Implication,
-                    left,
-                    right,
-                }
-                .into()
-            },
+            |left, _, right| Proposition::Implication(Box::new(left), Box::new(right)),
         ),
         "implication or formula without implications or equivalences",
     )
@@ -213,33 +196,27 @@ fn conjunction_or_disjunction(input: &mut Input) -> PResult<Proposition> {
                 "conjunction or disjunction logical connective",
             )),
             |left, sep, right| {
-                let operation = match sep {
-                    '∧' => NaryOperation::Conjunction,
-                    '∨' => NaryOperation::Disjunction,
-                    _ => unreachable!(),
-                };
-
-                match right {
-                    Proposition::Compound(box CompoundProposition::NaryOperation {
-                        operation: r_operation,
-                        mut propositions,
-                    }) if r_operation == operation => {
+                match (sep, right) {
+                    ('∧', Proposition::Conjunction(mut propositions)) => {
                         propositions.insert(0, left);
-                        CompoundProposition::NaryOperation {
-                            operation: r_operation,
-                            propositions,
-                        }
+                        Proposition::Conjunction(propositions)
                     }
 
-                    _ => CompoundProposition::NaryOperation {
-                        operation,
-                        propositions: vec![left, right],
-                    },
+                    ('∨', Proposition::Disjunction(mut propositions)) => {
+                        propositions.insert(0, left);
+                        Proposition::Disjunction(propositions)
+                    }
+
+                    ('∧', right) => Proposition::Conjunction(vec![left, right]),
+
+                    ('∨', right) => Proposition::Disjunction(vec![left, right]),
+
+                    _ => unreachable!("Invalid logical connective"),
                 }
                 .into()
             },
         ),
-        "conjunction or disjunction or formula without binary/nary logical connectives",
+        "conjunction or disjunction or formula without binary/n-ary logical connectives",
     )
     .parse_next(input)
 }
@@ -264,13 +241,7 @@ fn negation(input: &mut Input) -> PResult<Proposition> {
             describe('¬', "negation logical connective"),
             base_expression,
         )
-        .map(|p| {
-            CompoundProposition::UnaryOperation {
-                operation: UnaryOperation::Negation,
-                proposition: p,
-            }
-            .into()
-        }),
+        .map(|p| Proposition::Negation(Box::new(p))),
         "negation",
     )
     .parse_next(input)
