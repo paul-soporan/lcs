@@ -31,7 +31,7 @@ impl Substitution {
                 "{} ∖ {{{} ← {}}}",
                 self.name,
                 variable,
-                self.mapping[variable].to_relaxed_syntax(None)
+                self.mapping[variable].to_relaxed_syntax()
             );
         }
 
@@ -68,11 +68,7 @@ impl Substitution {
             for (variable, term) in &other.mapping {
                 if !self.mapping.contains_key(variable) {
                     explanation.with_subexplanation("", |explanation| {
-                        explanation.step(format!(
-                            "{} ← {}",
-                            variable,
-                            term.to_relaxed_syntax(None)
-                        ));
+                        explanation.step(format!("{} ← {}", variable, term.to_relaxed_syntax()));
 
                         new_substitution
                             .mapping
@@ -101,7 +97,7 @@ impl Substitution {
         let mut components = self
             .mapping
             .iter()
-            .map(|(variable, term)| format!("{} ← {}", variable, term.to_relaxed_syntax(None)));
+            .map(|(variable, term)| format!("{} ← {}", variable, term.to_relaxed_syntax()));
 
         format!("{{{}}}", components.join(", "))
     }

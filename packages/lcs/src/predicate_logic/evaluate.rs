@@ -76,7 +76,7 @@ impl Term {
     ) -> D {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_relaxed_syntax(None).green().markdown()
+            self.to_relaxed_syntax().green().markdown()
         ));
 
         let result = match self {
@@ -139,7 +139,7 @@ impl Formula {
     ) -> TruthValue {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_relaxed_syntax(None).green().markdown()
+            self.to_relaxed_syntax().green().markdown()
         ));
 
         let result = match self {

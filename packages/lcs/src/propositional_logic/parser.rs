@@ -195,25 +195,22 @@ fn conjunction_or_disjunction(input: &mut Input) -> PResult<Proposition> {
                 one_of(['∧', '∨']),
                 "conjunction or disjunction logical connective",
             )),
-            |left, sep, right| {
-                match (sep, right) {
-                    ('∧', Proposition::Conjunction(mut propositions)) => {
-                        propositions.insert(0, left);
-                        Proposition::Conjunction(propositions)
-                    }
-
-                    ('∨', Proposition::Disjunction(mut propositions)) => {
-                        propositions.insert(0, left);
-                        Proposition::Disjunction(propositions)
-                    }
-
-                    ('∧', right) => Proposition::Conjunction(vec![left, right]),
-
-                    ('∨', right) => Proposition::Disjunction(vec![left, right]),
-
-                    _ => unreachable!("Invalid logical connective"),
+            |left, sep, right| match (sep, right) {
+                ('∧', Proposition::Conjunction(mut propositions)) => {
+                    propositions.insert(0, left);
+                    Proposition::Conjunction(propositions)
                 }
-                .into()
+
+                ('∨', Proposition::Disjunction(mut propositions)) => {
+                    propositions.insert(0, left);
+                    Proposition::Disjunction(propositions)
+                }
+
+                ('∧', right) => Proposition::Conjunction(vec![left, right]),
+
+                ('∨', right) => Proposition::Disjunction(vec![left, right]),
+
+                _ => unreachable!("Invalid logical connective"),
             },
         ),
         "conjunction or disjunction or formula without binary/n-ary logical connectives",

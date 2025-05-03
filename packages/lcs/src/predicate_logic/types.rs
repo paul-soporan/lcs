@@ -130,7 +130,7 @@ impl Term {
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(None).red().markdown(),
+            self.to_relaxed_syntax().red().markdown(),
             substitution.name
         ));
 
@@ -156,7 +156,7 @@ impl Term {
             }
         };
 
-        explanation.step(self.to_relaxed_syntax(None).green().markdown());
+        explanation.step(self.to_relaxed_syntax().green().markdown());
     }
 
     pub fn with_substitution(
@@ -173,7 +173,7 @@ impl Term {
         true
     }
 
-    pub fn to_relaxed_syntax(&self, parent: Option<&FunctionSymbol>) -> String {
+    fn to_relaxed_syntax_impl(&self, parent: Option<&FunctionSymbol>) -> String {
         match self {
             Term::Variable(v) => v.to_string(),
             Term::Constant(c) => c.to_string(),
@@ -185,12 +185,12 @@ impl Term {
                 if let Some(infix) = &symbol.infix {
                     let expression = format!(
                         "{}{}{}",
-                        arguments[0].to_relaxed_syntax(Some(symbol)),
+                        arguments[0].to_relaxed_syntax_impl(Some(symbol)),
                         match function.as_str() {
                             "[][]" => String::new(),
                             _ => format!(" {} ", function),
                         },
-                        arguments[1].to_relaxed_syntax(Some(symbol))
+                        arguments[1].to_relaxed_syntax_impl(Some(symbol))
                     );
 
                     if let Some(FunctionSymbol {
@@ -210,12 +210,16 @@ impl Term {
                         function,
                         arguments
                             .iter()
-                            .map(|term| term.to_relaxed_syntax(None))
+                            .map(|term| term.to_relaxed_syntax_impl(None))
                             .join(", ")
                     )
                 }
             }
         }
+    }
+
+    pub fn to_relaxed_syntax(&self) -> String {
+        self.to_relaxed_syntax_impl(None)
     }
 
     pub fn relabel_variable(&mut self, old: &str, new: &str) {
@@ -410,7 +414,7 @@ impl Formula {
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
-            self.to_relaxed_syntax(None).red().markdown(),
+            self.to_relaxed_syntax().red().markdown(),
             substitution.name
         ));
 
@@ -483,7 +487,7 @@ impl Formula {
             }
         }
 
-        explanation.step(self.to_relaxed_syntax(None).green().markdown());
+        explanation.step(self.to_relaxed_syntax().green().markdown());
     }
 
     pub fn with_substitution(
@@ -504,9 +508,9 @@ impl Formula {
     ) -> bool {
         explanation.step(format!(
             "Checking if {} is substitutable for {} in {}",
-            term.to_relaxed_syntax(None).red().markdown(),
+            term.to_relaxed_syntax().red().markdown(),
             variable.to_string().blue().markdown(),
-            self.to_relaxed_syntax(None).green().markdown()
+            self.to_relaxed_syntax().green().markdown()
         ));
 
         match self {
@@ -570,7 +574,7 @@ impl Formula {
         }
     }
 
-    pub fn to_relaxed_syntax(&self, parent: Option<&str>) -> String {
+    fn to_relaxed_syntax_impl(&self, parent: Option<&str>) -> String {
         match self {
             Formula::Tautology => "⊤".to_owned(),
             Formula::Contradiction => "⊥".to_owned(),
@@ -584,8 +588,8 @@ impl Formula {
                 } else if arguments.len() == 2 && matches!(symbol, PredicateSymbol::Infix) {
                     let expression = format!(
                         "{} {predicate} {}",
-                        arguments[0].to_relaxed_syntax(None),
-                        arguments[1].to_relaxed_syntax(None)
+                        arguments[0].to_relaxed_syntax(),
+                        arguments[1].to_relaxed_syntax()
                     );
 
                     if let Some(parent) = parent {
@@ -601,17 +605,17 @@ impl Formula {
                         predicate,
                         arguments
                             .iter()
-                            .map(|term| term.to_relaxed_syntax(None))
+                            .map(|term| term.to_relaxed_syntax())
                             .join(", ")
                     )
                 }
             }
-            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax(Some("¬"))),
+            Formula::Negation(f) => format!("¬{}", f.to_relaxed_syntax_impl(Some("¬"))),
             Formula::Conjunction(left, right) => {
                 let conjunction = format!(
                     "{} ∧ {}",
-                    left.to_relaxed_syntax(Some("∧")),
-                    right.to_relaxed_syntax(Some("∧"))
+                    left.to_relaxed_syntax_impl(Some("∧")),
+                    right.to_relaxed_syntax_impl(Some("∧"))
                 );
 
                 if parent == Some("¬") {
@@ -623,8 +627,8 @@ impl Formula {
             Formula::Disjunction(left, right) => {
                 let disjunction = format!(
                     "{} ∨ {}",
-                    left.to_relaxed_syntax(Some("∨")),
-                    right.to_relaxed_syntax(Some("∨"))
+                    left.to_relaxed_syntax_impl(Some("∨")),
+                    right.to_relaxed_syntax_impl(Some("∨"))
                 );
 
                 if parent == Some("¬") {
@@ -635,21 +639,33 @@ impl Formula {
             }
             Formula::Implication(left, right) => format!(
                 "{} ⇒ {}",
-                left.to_relaxed_syntax(Some("⇒")),
-                right.to_relaxed_syntax(Some("⇒"))
+                left.to_relaxed_syntax_impl(Some("⇒")),
+                right.to_relaxed_syntax_impl(Some("⇒"))
             ),
             Formula::Equivalence(left, right) => format!(
                 "{} ⇔ {}",
-                left.to_relaxed_syntax(Some("⇔")),
-                right.to_relaxed_syntax(Some("⇔"))
+                left.to_relaxed_syntax_impl(Some("⇔")),
+                right.to_relaxed_syntax_impl(Some("⇔"))
             ),
             Formula::UniversalQuantification(variable, formula) => {
-                format!("∀{}({})", variable, formula.to_relaxed_syntax(Some("∀")))
+                format!(
+                    "∀{}({})",
+                    variable,
+                    formula.to_relaxed_syntax_impl(Some("∀"))
+                )
             }
             Formula::ExistentialQuantification(variable, formula) => {
-                format!("∃{}({})", variable, formula.to_relaxed_syntax(Some("∃")))
+                format!(
+                    "∃{}({})",
+                    variable,
+                    formula.to_relaxed_syntax_impl(Some("∃"))
+                )
             }
         }
+    }
+
+    pub fn to_relaxed_syntax(&self) -> String {
+        self.to_relaxed_syntax_impl(None)
     }
 
     pub fn relabel_variable(&mut self, old: &str, new: &str) {
@@ -861,8 +877,8 @@ impl Expression {
 
     pub fn to_relaxed_syntax(&self) -> String {
         match self {
-            Expression::Term(term) => term.to_relaxed_syntax(None),
-            Expression::Formula(formula) => formula.to_relaxed_syntax(None),
+            Expression::Term(term) => term.to_relaxed_syntax(),
+            Expression::Formula(formula) => formula.to_relaxed_syntax(),
         }
     }
 
@@ -882,8 +898,8 @@ impl Expression {
         variables_by_scope: &mut BTreeMap<String, BTreeMap<Variable, bool>>,
     ) -> ExpressionSymbols {
         match self {
-            Expression::Term(term) => term.get_symbols("".to_owned(), variables_by_scope),
-            Expression::Formula(formula) => formula.get_symbols("".to_owned(), variables_by_scope),
+            Expression::Term(term) => term.get_symbols("", variables_by_scope),
+            Expression::Formula(formula) => formula.get_symbols("", variables_by_scope),
         }
     }
 }

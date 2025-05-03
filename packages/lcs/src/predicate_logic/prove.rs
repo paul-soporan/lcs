@@ -202,7 +202,7 @@ impl Proof {
         let labeled_formula = |formula: &Formula, labels: &IndexMap<Formula, String>| {
             format!(
                 "\n    {}    {}",
-                formula.to_relaxed_syntax(None).green().markdown(),
+                formula.to_relaxed_syntax().green().markdown(),
                 pretty_label(&labels[formula], true)
             )
         };
@@ -302,7 +302,7 @@ impl Proof {
                     ProofNode::Case(left, right) => {
                         description.push_str(&format!(
                             "Case {} {}:\n",
-                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[0].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[0]], true)
                         ));
                         description +=
@@ -310,7 +310,7 @@ impl Proof {
 
                         description.push_str(&format!(
                             "Case {} {}:\n",
-                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[1].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[1]], true)
                         ));
                         description +=
@@ -327,7 +327,7 @@ impl Proof {
                     ProofNode::And(left, right) => {
                         description.push_str(&format!(
                             "Proving {} {}:\n",
-                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[0].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[0]], true)
                         ));
                         description +=
@@ -335,7 +335,7 @@ impl Proof {
 
                         description.push_str(&format!(
                             "Proving {} {}:\n",
-                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[1].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[1]], true)
                         ));
                         description +=
@@ -344,7 +344,7 @@ impl Proof {
                     ProofNode::Or(left, right) => {
                         description.push_str(&format!(
                             "Proving {} {}:\n",
-                            step.outputs[0].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[0].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[0]], true)
                         ));
                         description +=
@@ -352,7 +352,7 @@ impl Proof {
 
                         description.push_str(&format!(
                             "Proving {} {}:\n",
-                            step.outputs[1].to_relaxed_syntax(None).green().markdown(),
+                            step.outputs[1].to_relaxed_syntax().green().markdown(),
                             pretty_label(&labels[&step.outputs[1]], true)
                         ));
                         description +=
@@ -383,18 +383,14 @@ impl Proof {
         explanation.with_subexplanation("Proof situation", |explanation| {
             explanation.with_subexplanation("Knowledge Base", |explanation| {
                 for formula in &self.situation.knowledge_base {
-                    explanation.step(formula.to_relaxed_syntax(None).magenta().markdown());
+                    explanation.step(formula.to_relaxed_syntax().magenta().markdown());
                 }
             });
 
             explanation.with_subexplanation("Goal", |explanation| {
                 explanation.step(&format!(
                     "⊢ {}",
-                    self.situation
-                        .goal
-                        .to_relaxed_syntax(None)
-                        .green()
-                        .markdown()
+                    self.situation.goal.to_relaxed_syntax().green().markdown()
                 ));
             });
         });
@@ -414,12 +410,12 @@ impl Proof {
 
                 explanation.with_subexplanation("Inputs", |explanation| {
                     for formula in &next_step.inputs {
-                        explanation.step(formula.to_relaxed_syntax(None).magenta().markdown());
+                        explanation.step(formula.to_relaxed_syntax().magenta().markdown());
                     }
                 });
                 explanation.with_subexplanation("Outputs", |explanation| {
                     for formula in &next_step.outputs {
-                        explanation.step(formula.to_relaxed_syntax(None).green().markdown());
+                        explanation.step(formula.to_relaxed_syntax().green().markdown());
                     }
                 });
 
