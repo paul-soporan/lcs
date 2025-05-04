@@ -66,6 +66,15 @@ pub trait Solve {
 
     fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> Self::Result;
 
+    fn check_cnf_satisfiability(
+        cnf: ConjunctiveNormalForm,
+        explanation: &mut Explanation,
+    ) -> Self::Result {
+        let clauses = cnf.0.into_iter().map(Clause).collect();
+
+        Self::solve(clauses, explanation)
+    }
+
     fn check_satisfiability(
         proposition: impl Into<Proposition>,
         explanation: &mut Explanation,
@@ -81,9 +90,7 @@ pub trait Solve {
                 let nnf = NegationNormalForm::from_proposition(proposition, explanation);
                 let cnf = ConjunctiveNormalForm::from_negation_normal_form(nnf, explanation);
 
-                let clauses = cnf.0.into_iter().map(Clause).collect();
-
-                Self::solve(clauses, explanation)
+                Self::check_cnf_satisfiability(cnf, explanation)
             },
         )
     }

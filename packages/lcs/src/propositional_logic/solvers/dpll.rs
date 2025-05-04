@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use colored::Colorize;
 use indexmap::IndexSet;
@@ -67,14 +67,14 @@ impl Solve for DpllSolver {
 #[derive(Debug)]
 struct DpllEngine {
     clauses: IndexSet<Clause>,
-    required_literals: BTreeSet<Literal>,
+    required_literals: HashSet<Literal>,
 }
 
 impl DpllEngine {
     fn new(clauses: IndexSet<Clause>) -> Self {
         Self {
             clauses,
-            required_literals: BTreeSet::new(),
+            required_literals: HashSet::new(),
         }
     }
 

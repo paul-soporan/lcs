@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use colored::Colorize;
 use indexmap::IndexSet;
@@ -68,14 +68,14 @@ impl Solve for DpSolver {
 #[derive(Debug)]
 struct DpEngine {
     clauses: IndexSet<Clause>,
-    required_literals: BTreeSet<Literal>,
+    required_literals: HashSet<Literal>,
 }
 
 impl DpEngine {
     fn new(clauses: IndexSet<Clause>) -> Self {
         Self {
             clauses,
-            required_literals: BTreeSet::new(),
+            required_literals: HashSet::new(),
         }
     }
 
@@ -211,7 +211,7 @@ impl DpEngine {
 
 pub(super) fn apply_one_literal_rule(
     clauses: &mut IndexSet<Clause>,
-    required_literals: &mut BTreeSet<Literal>,
+    required_literals: &mut HashSet<Literal>,
     explanation: &mut Explanation,
 ) -> bool {
     explanation.with_subexplanation("Trying to apply the one literal rule", |explanation| {
@@ -220,48 +220,41 @@ pub(super) fn apply_one_literal_rule(
                 required_literals.insert(literal.clone());
 
                 replace_with_or_abort(clauses, |clauses| {
-                    let mut new_clauses = IndexSet::new();
-
-                    for (i, clause) in clauses.into_iter().enumerate() {
-                        if clause.0.contains(&literal) {
-                            explanation.step(format!(
-                                "Removing clause {} because it contains {}",
-                                format!("({})", i).to_string().magenta().markdown(),
-                                literal.to_string().green().markdown()
-                            ));
-                            continue;
-                        }
-
-                        let complement = literal.complement();
-
-                        let new_clause = Clause(
-                            clause
-                                .0
-                                .difference(&BTreeSet::from([complement.clone()]))
-                                .cloned()
-                                .collect(),
-                        );
-
-                        if new_clause != clause {
-                            explanation.with_subexplanation(
-                                format!(
-                                    "Deleting {} from {}",
-                                    complement.to_string().red().markdown(),
+                    clauses
+                        .into_iter()
+                        .enumerate()
+                        .filter_map(|(i, mut clause)| {
+                            if clause.0.contains(&literal) {
+                                explanation.step(format!(
+                                    "Removing clause {} because it contains {}",
                                     format!("({})", i).to_string().magenta().markdown(),
-                                ),
-                                |explanation| {
-                                    explanation.step(format!(
-                                        "Result: {}",
-                                        new_clause.to_string().blue().markdown(),
-                                    ));
-                                },
-                            );
-                        }
+                                    literal.to_string().green().markdown()
+                                ));
 
-                        new_clauses.insert(new_clause);
-                    }
+                                return None;
+                            }
 
-                    new_clauses
+                            let complement = literal.complement();
+
+                            if clause.0.remove(&complement) {
+                                explanation.with_subexplanation(
+                                    format!(
+                                        "Deleting {} from {}",
+                                        complement.to_string().red().markdown(),
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                    ),
+                                    |explanation| {
+                                        explanation.step(format!(
+                                            "Result: {}",
+                                            clause.to_string().blue().markdown(),
+                                        ));
+                                    },
+                                );
+                            }
+
+                            Some(clause)
+                        })
+                        .collect()
                 });
 
                 true
@@ -290,7 +283,7 @@ fn find_one_literal(clauses: &IndexSet<Clause>, explanation: &mut Explanation) -
 
 pub(super) fn apply_pure_literal_rule(
     clauses: &mut IndexSet<Clause>,
-    required_literals: &mut BTreeSet<Literal>,
+    required_literals: &mut HashSet<Literal>,
     explanation: &mut Explanation,
 ) -> bool {
     explanation.with_subexplanation("Trying to apply the pure literal rule", |explanation| {
