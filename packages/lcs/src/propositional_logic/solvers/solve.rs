@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, fmt::Display};
+use std::fmt::Display;
 
 use crate::{
     explanation::Explain,
@@ -11,9 +11,10 @@ use crate::{
 };
 use colored::Colorize;
 use indexmap::IndexSet;
+use ordermap::OrderSet;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Clause(pub BTreeSet<Literal>);
+pub struct Clause(pub OrderSet<Literal>);
 
 impl PartialOrd for Clause {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -70,7 +71,11 @@ pub trait Solve {
         cnf: ConjunctiveNormalForm,
         explanation: &mut impl Explain,
     ) -> Self::Result {
-        let clauses = cnf.0.into_iter().map(Clause).collect();
+        let clauses = cnf
+            .0
+            .into_iter()
+            .map(|clause| Clause(OrderSet::from_iter(clause)))
+            .collect();
 
         Self::solve(clauses, explanation)
     }

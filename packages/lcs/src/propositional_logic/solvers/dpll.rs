@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashSet};
 
 use colored::Colorize;
 use indexmap::IndexSet;
+use ordermap::OrderSet;
 
 use crate::{
     explanation::Explain,
@@ -87,7 +88,7 @@ impl DpllEngine {
                 let clauses = self.clauses.clone();
                 let literals = self.required_literals.clone();
 
-                let positive_literal_clause = Clause(BTreeSet::from([literal.clone()]));
+                let positive_literal_clause = Clause(OrderSet::from([literal.clone()]));
                 let positive_literal_explanation = format!(
                     "Branch with clause {}",
                     positive_literal_clause.to_string().green().markdown()
@@ -106,7 +107,7 @@ impl DpllEngine {
                     return true;
                 }
 
-                let negative_literal_clause = Clause(BTreeSet::from([literal.complement()]));
+                let negative_literal_clause = Clause(OrderSet::from([literal.complement()]));
                 let negative_literal_explanation = format!(
                     "Branch with clause {}",
                     negative_literal_clause.to_string().red().markdown()

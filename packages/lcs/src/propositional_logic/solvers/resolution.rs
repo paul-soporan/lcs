@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use colored::Colorize;
 use indexmap::IndexSet;
 use itertools::Itertools;
@@ -158,7 +156,7 @@ fn find_new_resolvent(
                                 .union(&clause2.0)
                                 .filter(|l| l.0 != literal.0)
                                 .cloned()
-                                .collect::<BTreeSet<_>>(),
+                                .collect(),
                         );
 
                         for literal in &resolvent.0 {
