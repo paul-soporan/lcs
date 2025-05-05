@@ -166,14 +166,7 @@ fn find_new_resolvent(
                         );
 
                         for literal in &resolvent.0 {
-                            let complement = literal.complement();
-                            if resolvent.0.contains(&complement) {
-                                explanation.step(format!(
-                                    "Discarding redundant resolvent: {} - contains both {} and {}",
-                                    resolvent.to_string().blue().markdown(),
-                                    literal.to_string().green().markdown(),
-                                    complement.to_string().red().markdown()
-                                ));
+                            if resolvent.0.contains(&literal.complement()) {
                                 continue 'literals;
                             }
                         }
