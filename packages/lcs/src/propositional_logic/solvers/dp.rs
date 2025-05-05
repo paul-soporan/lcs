@@ -86,34 +86,44 @@ impl DpEngine {
     }
 
     fn apply_dp(&mut self, explanation: &mut impl Explain) -> bool {
-        let result =
-            explanation.with_subexplanation("Applying the DP algorithm", |explanation| loop {
-                let explanation = explanation.subexplanation("DP step");
+        let result = explanation.with_subexplanation(
+            || "Applying the DP algorithm",
+            |explanation| loop {
+                let explanation = explanation.subexplanation(|| "DP step");
 
-                explanation.with_subexplanation("Current clauses", |explanation| {
-                    for (i, clause) in self.clauses.iter().enumerate() {
-                        explanation.step(format!(
-                            "{} {}",
-                            format!("({})", i).to_string().magenta().markdown(),
-                            clause.to_string().blue().markdown()
-                        ));
-                    }
-                });
+                explanation.with_subexplanation(
+                    || "Current clauses",
+                    |explanation| {
+                        for (i, clause) in self.clauses.iter().enumerate() {
+                            explanation.step(|| {
+                                format!(
+                                    "{} {}",
+                                    format!("({})", i).to_string().magenta().markdown(),
+                                    clause.to_string().blue().markdown()
+                                )
+                            });
+                        }
+                    },
+                );
 
                 if self.clauses.is_empty() {
-                    explanation.step(format!(
-                        "No clauses left, therefore the formula is {}",
-                        "satisfiable".green().markdown()
-                    ));
+                    explanation.step(|| {
+                        format!(
+                            "No clauses left, therefore the formula is {}",
+                            "satisfiable".green().markdown()
+                        )
+                    });
                     return true;
                 }
 
                 for clause in &self.clauses {
                     if clause.0.is_empty() {
-                        explanation.step(format!(
-                            "Found an empty clause, therefore the formula is {}",
-                            "unsatisfiable".red().markdown()
-                        ));
+                        explanation.step(|| {
+                            format!(
+                                "Found an empty clause, therefore the formula is {}",
+                                "unsatisfiable".red().markdown()
+                            )
+                        });
                         return false;
                     }
                 }
@@ -138,16 +148,19 @@ impl DpEngine {
                     Some(result) => return result,
                     None => continue,
                 }
-            });
-
-        explanation.step(format!(
-            "Result: {}",
-            if result {
-                "satisfiable".green().markdown()
-            } else {
-                "unsatisfiable".red().markdown()
             },
-        ));
+        );
+
+        explanation.step(|| {
+            format!(
+                "Result: {}",
+                if result {
+                    "satisfiable".green().markdown()
+                } else {
+                    "unsatisfiable".red().markdown()
+                },
+            )
+        });
 
         result
     }
@@ -159,7 +172,7 @@ impl DpEngine {
         let clauses = BTreeSet::from_iter(self.clauses.clone());
         let mut interpretation = Interpretation::default();
 
-        explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {
+        explanation.with_subexplanation(|| "Building a satisfying truth valuation", |explanation| {
             for literal in &self.required_literals {
                 let literal = literal.to_literal();
 
@@ -167,20 +180,20 @@ impl DpEngine {
                     .0
                     .insert(literal.0.clone(), TruthValue(literal.1));
 
-                explanation.step(format!(
+                explanation.step(|| format!(
                     "Adding {} to the truth valuation",
                     literal.to_string().green().markdown(),
                 ));
             }
 
             'clause: for clause in clauses {
-                let explanation = explanation.subexplanation(format!(
+                let explanation = explanation.subexplanation(|| format!(
                     "Checking clause {}",
                     clause.to_string().blue().markdown()
                 ));
 
                 for literal in clause.0 {
-                    let explanation = explanation.subexplanation(format!(
+                    let explanation = explanation.subexplanation(|| format!(
                         "Checking literal {}",
                         literal.to_string().blue().markdown()
                     ));
@@ -191,16 +204,16 @@ impl DpEngine {
                     match existing {
                         Some(value) => {
                             if value.0 == literal.1 {
-                                explanation.step("Literal evaluates to true according to the truth valuation, skipping clause");
+                                explanation.step(|| "Literal evaluates to true according to the truth valuation, skipping clause");
                                 continue 'clause;
                             } else {
-                                explanation.step("Literal evaluates to false according to the truth valuation, skipping it");
+                                explanation.step(|| "Literal evaluates to false according to the truth valuation, skipping it");
                                 continue;
                             }
                         }
                         None => {
                             explanation
-                                .step("Literal is not in the truth valuation, adding it");
+                                .step(|| "Literal is not in the truth valuation, adding it");
 
                             interpretation
                                 .0
@@ -212,7 +225,7 @@ impl DpEngine {
                 }
             }
 
-            explanation.step(format!(
+            explanation.step(|| format!(
                 "Result: {}",
                 interpretation.to_string().green().markdown()
             ));
@@ -231,10 +244,11 @@ where
     T: IntoIterator<Item = Clause> + FromIterator<Clause>,
     for<'a> &'a T: IntoIterator<Item = &'a Clause>,
 {
-    explanation.with_subexplanation("Trying to apply the one literal rule", |explanation| {
-        match find_one_literal(&*clauses, explanation) {
+    explanation.with_subexplanation(
+        || "Trying to apply the one literal rule",
+        |explanation| match find_one_literal(&*clauses, explanation) {
             Some(literal) => {
-                required_literals.insert(literal.clone());
+                required_literals.insert(literal);
 
                 replace_with_or_abort(clauses, |clauses| {
                     clauses
@@ -242,11 +256,13 @@ where
                         .enumerate()
                         .filter_map(|(i, mut clause)| {
                             if clause.0.contains(&literal) {
-                                explanation.step(format!(
-                                    "Removing clause {} because it contains {}",
-                                    format!("({})", i).to_string().magenta().markdown(),
-                                    literal.to_string().green().markdown()
-                                ));
+                                explanation.step(|| {
+                                    format!(
+                                        "Removing clause {} because it contains {}",
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                        literal.to_string().green().markdown()
+                                    )
+                                });
 
                                 return None;
                             }
@@ -255,16 +271,20 @@ where
 
                             if clause.0.remove(&complement) {
                                 explanation.with_subexplanation(
-                                    format!(
-                                        "Deleting {} from {}",
-                                        complement.to_string().red().markdown(),
-                                        format!("({})", i).to_string().magenta().markdown(),
-                                    ),
+                                    || {
+                                        format!(
+                                            "Deleting {} from {}",
+                                            complement.to_string().red().markdown(),
+                                            format!("({})", i).to_string().magenta().markdown(),
+                                        )
+                                    },
                                     |explanation| {
-                                        explanation.step(format!(
-                                            "Result: {}",
-                                            clause.to_string().blue().markdown(),
-                                        ));
+                                        explanation.step(|| {
+                                            format!(
+                                                "Result: {}",
+                                                clause.to_string().blue().markdown(),
+                                            )
+                                        });
                                     },
                                 );
                             }
@@ -277,28 +297,33 @@ where
                 true
             }
             None => false,
-        }
-    })
+        },
+    )
 }
 
 fn find_one_literal(
     clauses: impl IntoIterator<Item = &Clause>,
     explanation: &mut impl Explain,
 ) -> Option<IntLiteral> {
-    explanation.with_subexplanation("Looking for a one literal clause", |explanation| {
-        for clause in clauses {
-            if clause.0.len() == 1 {
-                explanation.step(format!(
-                    "Found a one literal clause: {}",
-                    clause.to_string().green().markdown()
-                ));
-                return Some(clause.0.first().unwrap().clone());
+    explanation.with_subexplanation(
+        || "Looking for a one literal clause",
+        |explanation| {
+            for clause in clauses {
+                if clause.0.len() == 1 {
+                    explanation.step(|| {
+                        format!(
+                            "Found a one literal clause: {}",
+                            clause.to_string().green().markdown()
+                        )
+                    });
+                    return Some(clause.0.first().copied().unwrap());
+                }
             }
-        }
 
-        explanation.step("No one literal clause found");
-        None
-    })
+            explanation.step(|| "No one literal clause found");
+            None
+        },
+    )
 }
 
 pub(super) fn apply_pure_literal_rule<T>(
@@ -310,10 +335,11 @@ where
     T: IntoIterator<Item = Clause> + FromIterator<Clause>,
     for<'a> &'a T: IntoIterator<Item = &'a Clause>,
 {
-    explanation.with_subexplanation("Trying to apply the pure literal rule", |explanation| {
-        match find_pure_literal(&*clauses, explanation) {
+    explanation.with_subexplanation(
+        || "Trying to apply the pure literal rule",
+        |explanation| match find_pure_literal(&*clauses, explanation) {
             Some(literal) => {
-                required_literals.insert(literal.clone());
+                required_literals.insert(literal);
 
                 replace_with_or_abort(clauses, |clauses| {
                     clauses
@@ -321,11 +347,13 @@ where
                         .enumerate()
                         .filter_map(|(i, clause)| {
                             if clause.0.contains(&literal) {
-                                explanation.step(format!(
-                                    "Removing clause {} because it contains {}",
-                                    format!("({})", i).to_string().magenta().markdown(),
-                                    literal.to_string().green().markdown()
-                                ));
+                                explanation.step(|| {
+                                    format!(
+                                        "Removing clause {} because it contains {}",
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                        literal.to_string().green().markdown()
+                                    )
+                                });
                                 None
                             } else {
                                 Some(clause)
@@ -337,38 +365,43 @@ where
                 true
             }
             None => false,
-        }
-    })
+        },
+    )
 }
 
 fn find_pure_literal(
     clauses: impl IntoIterator<Item = &Clause>,
     explanation: &mut impl Explain,
 ) -> Option<IntLiteral> {
-    explanation.with_subexplanation("Looking for a pure literal", |explanation| {
-        let mut literals = BTreeMap::new();
+    explanation.with_subexplanation(
+        || "Looking for a pure literal",
+        |explanation| {
+            let mut literals = BTreeMap::new();
 
-        for clause in clauses {
-            for literal in &clause.0 {
-                let entry = literals
-                    .entry(literal.abs())
-                    .or_insert_with(|| BTreeSet::new());
-                entry.insert(literal);
+            for clause in clauses {
+                for literal in &clause.0 {
+                    let entry = literals
+                        .entry(literal.abs())
+                        .or_insert_with(|| BTreeSet::new());
+                    entry.insert(literal);
+                }
             }
-        }
 
-        for occurrences in literals.values() {
-            if occurrences.len() == 1 {
-                let literal = occurrences.first().copied().unwrap();
-                explanation.step(format!(
-                    "Found a pure literal: {}",
-                    literal.to_string().green().markdown()
-                ));
-                return Some(literal.clone());
+            for occurrences in literals.values() {
+                if occurrences.len() == 1 {
+                    let literal = occurrences.first().copied().unwrap();
+                    explanation.step(|| {
+                        format!(
+                            "Found a pure literal: {}",
+                            literal.to_string().green().markdown()
+                        )
+                    });
+                    return Some(literal.clone());
+                }
             }
-        }
 
-        explanation.step("No pure literal found");
-        None
-    })
+            explanation.step(|| "No pure literal found");
+            None
+        },
+    )
 }

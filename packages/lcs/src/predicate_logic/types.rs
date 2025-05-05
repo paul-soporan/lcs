@@ -128,11 +128,13 @@ impl Term {
         substitution: &Substitution,
         explanation: &mut impl Explain,
     ) {
-        explanation.step(format!(
-            "({})<sub>{}</sub>",
-            self.to_string().red().markdown(),
-            substitution.name
-        ));
+        explanation.step(|| {
+            format!(
+                "({})<sub>{}</sub>",
+                self.to_string().red().markdown(),
+                substitution.name
+            )
+        });
 
         match self {
             Term::Variable(v) => {
@@ -147,7 +149,7 @@ impl Term {
                 ..
             } => {
                 for argument in arguments {
-                    argument.apply_substitution(substitution, explanation.subexplanation(""));
+                    argument.apply_substitution(substitution, explanation.subexplanation(|| ""));
                 }
 
                 explanation.merge_subexplanations(|subexplanations| {
@@ -156,7 +158,7 @@ impl Term {
             }
         };
 
-        explanation.step(self.to_string().green().markdown());
+        explanation.step(|| self.to_string().green().markdown());
     }
 
     pub fn with_substitution(
@@ -415,11 +417,13 @@ impl Formula {
         substitution: &Substitution,
         explanation: &mut impl Explain,
     ) {
-        explanation.step(format!(
-            "({})<sub>{}</sub>",
-            self.to_string().red().markdown(),
-            substitution.name
-        ));
+        explanation.step(|| {
+            format!(
+                "({})<sub>{}</sub>",
+                self.to_string().red().markdown(),
+                substitution.name
+            )
+        });
 
         match self {
             Formula::Tautology | Formula::Contradiction => {}
@@ -429,7 +433,7 @@ impl Formula {
                 ..
             } => {
                 for argument in arguments {
-                    argument.apply_substitution(substitution, explanation.subexplanation(""));
+                    argument.apply_substitution(substitution, explanation.subexplanation(|| ""));
                 }
 
                 explanation.merge_subexplanations(|subexplanations| {
@@ -437,52 +441,52 @@ impl Formula {
                 });
             }
             Formula::Negation(f) => {
-                f.apply_substitution(substitution, explanation.subexplanation(""));
+                f.apply_substitution(substitution, explanation.subexplanation(|| ""));
 
                 explanation
                     .merge_subexplanations(|subexplanations| format!("¬{}", subexplanations[0]));
             }
             Formula::Conjunction(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(|| ""));
+                right.apply_substitution(substitution, explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ∧ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Disjunction(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(|| ""));
+                right.apply_substitution(substitution, explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ∨ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Implication(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(|| ""));
+                right.apply_substitution(substitution, explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ⇒ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::Equivalence(left, right) => {
-                left.apply_substitution(substitution, explanation.subexplanation(""));
-                right.apply_substitution(substitution, explanation.subexplanation(""));
+                left.apply_substitution(substitution, explanation.subexplanation(|| ""));
+                right.apply_substitution(substitution, explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("{} ⇔ {}", subexplanations[0], subexplanations[1])
                 });
             }
             Formula::UniversalQuantification(v, f) => {
-                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
+                f.apply_substitution(&substitution.without(v), explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("∀{}({})", v, subexplanations[0])
                 });
             }
             Formula::ExistentialQuantification(v, f) => {
-                f.apply_substitution(&substitution.without(v), explanation.subexplanation(""));
+                f.apply_substitution(&substitution.without(v), explanation.subexplanation(|| ""));
 
                 explanation.merge_subexplanations(|subexplanations| {
                     format!("∃{}({})", v, subexplanations[0])
@@ -490,7 +494,7 @@ impl Formula {
             }
         }
 
-        explanation.step(self.to_string().green().markdown());
+        explanation.step(|| self.to_string().green().markdown());
     }
 
     pub fn with_substitution(
@@ -509,47 +513,49 @@ impl Formula {
         variable: &Variable,
         explanation: &mut impl Explain,
     ) -> bool {
-        explanation.step(format!(
-            "Checking if {} is substitutable for {} in {}",
-            term.to_string().red().markdown(),
-            variable.to_string().blue().markdown(),
-            self.to_string().green().markdown()
-        ));
+        explanation.step(|| {
+            format!(
+                "Checking if {} is substitutable for {} in {}",
+                term.to_string().red().markdown(),
+                variable.to_string().blue().markdown(),
+                self.to_string().green().markdown()
+            )
+        });
 
         match self {
             Formula::Tautology | Formula::Contradiction => {
-                explanation.step("Tautology/contradiction -> substitutable".to_owned());
+                explanation.step(|| "Tautology/contradiction -> substitutable".to_owned());
                 true
             }
             Formula::PredicateApplication { .. } => {
-                explanation.step("Predicate application -> substitutable".to_owned());
+                explanation.step(|| "Predicate application -> substitutable".to_owned());
                 true
             }
             Formula::Negation(f) => {
-                f.is_substitutable(term, variable, explanation.subexplanation("Negation"))
+                f.is_substitutable(term, variable, explanation.subexplanation(|| "Negation"))
             }
             Formula::Conjunction(left, right)
             | Formula::Disjunction(left, right)
             | Formula::Implication(left, right)
             | Formula::Equivalence(left, right) => {
-                left.is_substitutable(term, variable, explanation.subexplanation("LHS"))
-                    && right.is_substitutable(term, variable, explanation.subexplanation("RHS"))
+                left.is_substitutable(term, variable, explanation.subexplanation(|| "LHS"))
+                    && right.is_substitutable(term, variable, explanation.subexplanation(|| "RHS"))
             }
             Formula::UniversalQuantification(v, f) | Formula::ExistentialQuantification(v, f) => {
                 if v == variable {
-                    explanation.step(format!("{} is bound (protected) -> substitutable", v));
+                    explanation.step(|| format!("{} is bound (protected) -> substitutable", v));
                     true
                 } else {
                     if !f.contains_variable(variable) {
-                        explanation.step(
-                            "Subformula does not contain variable -> substitutable".to_owned(),
-                        );
+                        explanation.step(|| {
+                            "Subformula does not contain variable -> substitutable".to_owned()
+                        });
 
                         return true;
                     }
 
                     if term.contains_variable(v) {
-                        explanation.step(format!("{} is free in term -> not substitutable ", v));
+                        explanation.step(|| format!("{} is free in term -> not substitutable ", v));
 
                         return false;
                     }
@@ -557,18 +563,18 @@ impl Formula {
                     let is_substitutable_in_subformula = f.is_substitutable(
                         term,
                         variable,
-                        explanation.subexplanation("Subformula of quantified formula"),
+                        explanation.subexplanation(|| "Subformula of quantified formula"),
                     );
 
                     if is_substitutable_in_subformula {
-                        explanation.step(
-                            "Variable is substitutable in subformula -> substitutable".to_owned(),
-                        );
+                        explanation.step(|| {
+                            "Variable is substitutable in subformula -> substitutable".to_owned()
+                        });
                     } else {
-                        explanation.step(
+                        explanation.step(|| {
                             "Variable is not substitutable in subformula -> not substitutable"
-                                .to_owned(),
-                        );
+                                .to_owned()
+                        });
                     }
 
                     is_substitutable_in_subformula

@@ -72,46 +72,47 @@ pub fn into_nand_only_component(
     explanation: &mut impl Explain,
 ) -> Component {
     let component = component.into();
+    let component_str = component.to_string();
 
-    explanation.with_subexplanation(
-        format!("Transforming {} into nand-only circuit", component.to_string().red().markdown()),
+    explanation.with_subexplanation(||
+        format!("Transforming {} into nand-only circuit", component_str.red().markdown()),
         |explanation| {
             let result = match component {
                 Component::Gate(box gate) => match gate {
-                    Gate::Or(left, right) => explanation.with_subexplanation("disjunction -> double-negated disjunction -> negation of conjunction of negations -> nand of negations", |explanation| {
+                    Gate::Or(left, right) => explanation.with_subexplanation(|| "disjunction -> double-negated disjunction -> negation of conjunction of negations -> nand of negations", |explanation| {
                         Gate::Nand(
-                            into_nand_only_component(Gate::Not(left), explanation.subexplanation("negation of lhs")),
-                            into_nand_only_component(Gate::Not(right), explanation.subexplanation("negation of rhs")),
+                            into_nand_only_component(Gate::Not(left), explanation.subexplanation(|| "negation of lhs")),
+                            into_nand_only_component(Gate::Not(right), explanation.subexplanation(|| "negation of rhs")),
                         )
                         .into()
                     }),
                     Gate::And(left, right) => {
-                        explanation.with_subexplanation("conjunction -> double-negated conjunction -> negated nand", |explanation| {
-                            into_nand_only_component(Gate::Not(Gate::Nand(left, right).into()), explanation.subexplanation("negation of nand"))
+                        explanation.with_subexplanation(|| "conjunction -> double-negated conjunction -> negated nand", |explanation| {
+                            into_nand_only_component(Gate::Not(Gate::Nand(left, right).into()), explanation.subexplanation(|| "negation of nand"))
                         })
                     }
                     Gate::Not(component) => match component {
-                        Component::Input(bit) => explanation.with_subexplanation("negated atom -> nand", |_| {
+                        Component::Input(bit) => explanation.with_subexplanation(|| "negated atom -> nand", |_| {
                             Gate::Nand(bit.clone().into(), bit.into()).into()
                         }),
                         Component::Gate(box gate) => match gate {
-                            Gate::Not(component) => explanation.with_subexplanation("double negated formula -> formula", |explanation| into_nand_only_component(component, explanation.subexplanation("inner formula"))),
-                            Gate::And(left, right) => explanation.with_subexplanation("negated conjunction -> nand", |explanation| {
+                            Gate::Not(component) => explanation.with_subexplanation(|| "double negated formula -> formula", |explanation| into_nand_only_component(component, explanation.subexplanation(|| "inner formula"))),
+                            Gate::And(left, right) => explanation.with_subexplanation(|| "negated conjunction -> nand", |explanation| {
                                 Gate::Nand(
-                                    into_nand_only_component(left, explanation.subexplanation("lhs")),
-                                    into_nand_only_component(right, explanation.subexplanation("rhs")),
+                                    into_nand_only_component(left, explanation.subexplanation(|| "lhs")),
+                                    into_nand_only_component(right, explanation.subexplanation(|| "rhs")),
                                 )
                                 .into()
                             }),
-                            Gate::Or(left, right) => explanation.with_subexplanation("negated disjunction -> conjunction of negations", |explanation| {
+                            Gate::Or(left, right) => explanation.with_subexplanation(|| "negated disjunction -> conjunction of negations", |explanation| {
                                 into_nand_only_component(Gate::And(
                                     Gate::Not(left).into(),
                                     Gate::Not(right).into(),
-                                ), explanation.subexplanation("conjunction of negations"))
+                                ), explanation.subexplanation(|| "conjunction of negations"))
                             }),
-                            Gate::Nand(left, right) => explanation.with_subexplanation("negated nand -> conjunction -> double-negated conjunction -> negated nand", |explanation| {
-                                let left = into_nand_only_component(left, explanation.subexplanation("lhs"));
-                                let right = into_nand_only_component(right, explanation.subexplanation("rhs"));
+                            Gate::Nand(left, right) => explanation.with_subexplanation(|| "negated nand -> conjunction -> double-negated conjunction -> negated nand", |explanation| {
+                                let left = into_nand_only_component(left, explanation.subexplanation(|| "lhs"));
+                                let right = into_nand_only_component(right, explanation.subexplanation(|| "rhs"));
 
                                 let gate = Gate::Nand(left, right);
 
@@ -124,7 +125,7 @@ pub fn into_nand_only_component(
                 component => component,
             };
 
-            explanation.step(format!("Result: {}", result.to_string().green().markdown()));
+            explanation.step(|| format!("Result: {}", result.to_string().green().markdown()));
 
             result
         },

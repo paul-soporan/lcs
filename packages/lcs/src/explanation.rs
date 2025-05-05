@@ -5,16 +5,16 @@ use enum_as_inner::EnumAsInner;
 use termtree::Tree;
 
 pub trait Explain {
-    fn step(&mut self, step: impl Into<String>);
-    fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self;
+    fn step<S: Into<String>>(&mut self, step_fn: impl FnOnce() -> S);
+    fn subexplanation<S: Into<String>>(&mut self, description_fn: impl FnOnce() -> S) -> &mut Self;
     fn merge_subexplanations(&mut self, function: impl Fn(&[String]) -> String);
 
-    fn with_subexplanation<T>(
+    fn with_subexplanation<T, S: Into<String>>(
         &mut self,
-        description: impl Into<String>,
+        description_fn: impl FnOnce() -> S,
         function: impl FnOnce(&mut Self) -> T,
     ) -> T {
-        let explanation = self.subexplanation(description);
+        let explanation = self.subexplanation(description_fn);
         function(explanation)
     }
 }
@@ -23,9 +23,9 @@ pub trait Explain {
 pub struct DiscardedExplanation;
 
 impl Explain for DiscardedExplanation {
-    fn step(&mut self, _: impl Into<String>) {}
+    fn step<S: Into<String>>(&mut self, _: impl FnOnce() -> S) {}
 
-    fn subexplanation(&mut self, _: impl Into<String>) -> &mut Self {
+    fn subexplanation<S: Into<String>>(&mut self, _: impl FnOnce() -> S) -> &mut Self {
         self
     }
 
@@ -45,16 +45,16 @@ pub struct Explanation {
 }
 
 impl Explain for Explanation {
-    fn step(&mut self, step: impl Into<String>) {
-        let step = ExplanationComponent::Step(step.into());
+    fn step<S: Into<String>>(&mut self, step_fn: impl FnOnce() -> S) {
+        let step = ExplanationComponent::Step(step_fn().into());
 
         if self.components.last() != Some(&step) {
             self.components.push(step);
         }
     }
 
-    fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self {
-        let explanation = Explanation::new(description);
+    fn subexplanation<S: Into<String>>(&mut self, description_fn: impl FnOnce() -> S) -> &mut Self {
+        let explanation = Explanation::new(description_fn());
         self.components
             .push(ExplanationComponent::Explanation(explanation));
 
@@ -70,7 +70,7 @@ impl Explain for Explanation {
 
         for component in mem::take(&mut self.components) {
             match component {
-                ExplanationComponent::Step(step) => self.step(step),
+                ExplanationComponent::Step(step) => self.step(|| step),
                 ExplanationComponent::Explanation(explanation) => {
                     subexplanations.push(
                         explanation
@@ -105,7 +105,7 @@ impl Explain for Explanation {
                     .as_slice(),
             );
 
-            self.step(merged);
+            self.step(|| merged);
         }
     }
 }
@@ -119,7 +119,7 @@ impl Explanation {
     }
 
     pub fn use_tree(&mut self, tree: Tree<String>) {
-        let subexplanation = self.subexplanation(tree.root);
+        let subexplanation = self.subexplanation(|| tree.root);
         for leaf in tree.leaves {
             subexplanation.use_tree(leaf);
         }

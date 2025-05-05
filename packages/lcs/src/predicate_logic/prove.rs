@@ -383,81 +383,107 @@ impl Proof {
     }
 
     pub fn explain(&self, explanation: &mut impl Explain) {
-        explanation.with_subexplanation("Proof situation", |explanation| {
-            explanation.with_subexplanation("Knowledge Base", |explanation| {
-                for formula in &self.situation.knowledge_base {
-                    explanation.step(formula.to_string().magenta().markdown());
-                }
-            });
+        explanation.with_subexplanation(
+            || "Proof situation",
+            |explanation| {
+                explanation.with_subexplanation(
+                    || "Knowledge Base",
+                    |explanation| {
+                        for formula in &self.situation.knowledge_base {
+                            explanation.step(|| formula.to_string().magenta().markdown());
+                        }
+                    },
+                );
 
-            explanation.with_subexplanation("Goal", |explanation| {
-                explanation.step(&format!(
-                    "⊢ {}",
-                    self.situation.goal.to_string().green().markdown()
-                ));
-            });
+                explanation.with_subexplanation(
+                    || "Goal",
+                    |explanation| {
+                        explanation.step(|| {
+                            format!("⊢ {}", self.situation.goal.to_string().green().markdown())
+                        });
+                    },
+                );
+            },
+        );
+
+        explanation.step(|| {
+            format!(
+                "Result: {}",
+                match self.result {
+                    ProofResult::Proven => "Proven".green().markdown(),
+                    ProofResult::Contradiction => "Contradiction".red().markdown(),
+                    ProofResult::Unknown => "Unknown".yellow().markdown(),
+                }
+            )
         });
 
-        explanation.step(format!(
-            "Result: {}",
-            match self.result {
-                ProofResult::Proven => "Proven".green().markdown(),
-                ProofResult::Contradiction => "Contradiction".red().markdown(),
-                ProofResult::Unknown => "Unknown".yellow().markdown(),
-            }
-        ));
+        explanation.with_subexplanation(
+            || "Next step",
+            |explanation| match &self.next_step {
+                Some(next_step) => {
+                    explanation.step(|| format!("Rule: {}", next_step.rule.red().markdown()));
 
-        explanation.with_subexplanation("Next step", |explanation| match &self.next_step {
-            Some(next_step) => {
-                explanation.step(&format!("Rule: {}", next_step.rule.red().markdown()));
-
-                explanation.with_subexplanation("Inputs", |explanation| {
-                    for formula in &next_step.inputs {
-                        explanation.step(formula.to_string().magenta().markdown());
-                    }
-                });
-                explanation.with_subexplanation("Outputs", |explanation| {
-                    for formula in &next_step.outputs {
-                        explanation.step(formula.to_string().green().markdown());
-                    }
-                });
-
-                match &next_step.node {
-                    ProofNode::Trivial => {
-                        explanation.step(format!(
-                            "Trivial: {}",
-                            match next_step.result {
-                                ProofResult::Proven => "Local".green().markdown(),
-                                ProofResult::Contradiction => "Contradiction".red().markdown(),
-                                ProofResult::Unknown => "Unknown".yellow().markdown(),
+                    explanation.with_subexplanation(
+                        || "Inputs",
+                        |explanation| {
+                            for formula in &next_step.inputs {
+                                explanation.step(|| formula.to_string().magenta().markdown());
                             }
-                        ));
-                    }
-                    ProofNode::Proof(next_proof) => {
-                        next_proof.explain(explanation);
-                    }
-                    ProofNode::And(left_proof, right_proof) => {
-                        explanation.with_subexplanation("And node", |explanation| {
-                            left_proof.explain(explanation);
-                            right_proof.explain(explanation);
-                        })
-                    }
-                    ProofNode::Or(left_proof, right_proof) => {
-                        explanation.with_subexplanation("Or node", |explanation| {
-                            left_proof.explain(explanation);
-                            right_proof.explain(explanation);
-                        })
-                    }
-                    ProofNode::Case(left_proof, right_proof) => {
-                        explanation.with_subexplanation("Case node", |explanation| {
-                            left_proof.explain(explanation);
-                            right_proof.explain(explanation);
-                        })
+                        },
+                    );
+                    explanation.with_subexplanation(
+                        || "Outputs",
+                        |explanation| {
+                            for formula in &next_step.outputs {
+                                explanation.step(|| formula.to_string().green().markdown());
+                            }
+                        },
+                    );
+
+                    match &next_step.node {
+                        ProofNode::Trivial => {
+                            explanation.step(|| {
+                                format!(
+                                    "Trivial: {}",
+                                    match next_step.result {
+                                        ProofResult::Proven => "Local".green().markdown(),
+                                        ProofResult::Contradiction =>
+                                            "Contradiction".red().markdown(),
+                                        ProofResult::Unknown => "Unknown".yellow().markdown(),
+                                    }
+                                )
+                            });
+                        }
+                        ProofNode::Proof(next_proof) => {
+                            next_proof.explain(explanation);
+                        }
+                        ProofNode::And(left_proof, right_proof) => explanation.with_subexplanation(
+                            || "And node",
+                            |explanation| {
+                                left_proof.explain(explanation);
+                                right_proof.explain(explanation);
+                            },
+                        ),
+                        ProofNode::Or(left_proof, right_proof) => explanation.with_subexplanation(
+                            || "Or node",
+                            |explanation| {
+                                left_proof.explain(explanation);
+                                right_proof.explain(explanation);
+                            },
+                        ),
+                        ProofNode::Case(left_proof, right_proof) => explanation
+                            .with_subexplanation(
+                                || "Case node",
+                                |explanation| {
+                                    left_proof.explain(explanation);
+                                    right_proof.explain(explanation);
+                                },
+                            ),
                     }
                 }
-            }
-            None => {}
-        })
+                None => {}
+            },
+        )
     }
 }
 

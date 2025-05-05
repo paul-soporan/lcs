@@ -41,18 +41,22 @@ fn exercise_1() {
     let dp_solver = DpSolver::new();
 
     explanation.with_subexplanation(
-        format!(
-            "Checking logical consequence {}",
-            consequence.to_string().blue().markdown()
-        ),
+        || {
+            format!(
+                "Checking logical consequence {}",
+                consequence.to_string().blue().markdown()
+            )
+        },
         |explanation| {
             let resolution_result = resolution_solver.check_logical_consequence(
                 consequence.clone(),
-                explanation.subexplanation("Resolution"),
+                explanation.subexplanation(|| "Resolution"),
             );
 
-            let dp_result = dp_solver
-                .check_logical_consequence(consequence.clone(), explanation.subexplanation("DP"));
+            let dp_result = dp_solver.check_logical_consequence(
+                consequence.clone(),
+                explanation.subexplanation(|| "DP"),
+            );
 
             let consequence_resolution = resolution_result.value();
             let consequence_dp = dp_result.value();
@@ -104,16 +108,20 @@ fn exercise_2() {
         let resolution_solver = ResolutionSolver::new();
         let dp_solver = DpSolver::new();
 
+        let cnf_string = cnf.to_string();
+
         explanation.with_subexplanation(
-            format!(
-                "Checking satisfiability for {}",
-                cnf.to_string().blue().markdown()
-            ),
+            || {
+                format!(
+                    "Checking satisfiability for {}",
+                    cnf_string.blue().markdown()
+                )
+            },
             |explanation| {
                 let resolution_result = resolution_solver
-                    .check_satisfiability(cnf.clone(), explanation.subexplanation("Resolution"));
-                let dp_result =
-                    dp_solver.check_satisfiability(cnf.clone(), explanation.subexplanation("DP"));
+                    .check_satisfiability(cnf.clone(), explanation.subexplanation(|| "Resolution"));
+                let dp_result = dp_solver
+                    .check_satisfiability(cnf.clone(), explanation.subexplanation(|| "DP"));
 
                 let satisfiable_resolution = resolution_result.value();
                 let satisfiable_dp = dp_result.value();
@@ -175,16 +183,20 @@ fn exercise_3() {
     let resolution_solver = ResolutionSolver::new();
     let dp_solver = DpSolver::new();
 
+    let cnf_string = cnf.to_string();
+
     explanation.with_subexplanation(
-        format!(
-            "Checking satisfiability for {}",
-            cnf.to_string().blue().markdown()
-        ),
+        || {
+            format!(
+                "Checking satisfiability for {}",
+                cnf_string.blue().markdown()
+            )
+        },
         |explanation| {
             let resolution_result = resolution_solver
-                .check_satisfiability(cnf.clone(), explanation.subexplanation("Resolution"));
+                .check_satisfiability(cnf.clone(), explanation.subexplanation(|| "Resolution"));
             let dp_result =
-                dp_solver.check_satisfiability(cnf.clone(), explanation.subexplanation("DP"));
+                dp_solver.check_satisfiability(cnf.clone(), explanation.subexplanation(|| "DP"));
 
             let satisfiable_resolution = resolution_result.value();
             let satisfiable_dp = dp_result.value();
@@ -234,14 +246,14 @@ fn exercise_4() {
     let dp_solver = DpSolver::new();
 
     explanation.with_subexplanation(
-        format!("Checking validity for {}", formula.blue().markdown()),
+        || format!("Checking validity for {}", formula.blue().markdown()),
         |explanation| {
             let resolution_result = resolution_solver.check_validity(
                 proposition.clone(),
-                explanation.subexplanation("Resolution"),
+                explanation.subexplanation(|| "Resolution"),
             );
             let dp_result =
-                dp_solver.check_validity(proposition.clone(), explanation.subexplanation("DP"));
+                dp_solver.check_validity(proposition.clone(), explanation.subexplanation(|| "DP"));
 
             let valid_resolution = resolution_result.value();
             let valid_dp = dp_result.value();

@@ -112,8 +112,9 @@ pub fn prove(
 
     let mut explanation = Explanation::default();
 
-    let knowledge_base =
-        match explanation.with_subexplanation("Parsing knowledge base", |explanation| {
+    let knowledge_base = match explanation.with_subexplanation(
+        || "Parsing knowledge base",
+        |explanation| {
             knowledge_base
                 .into_iter()
                 .enumerate()
@@ -121,24 +122,25 @@ pub fn prove(
                     parse_formula(
                         &formula,
                         &signature,
-                        explanation.subexplanation(format!("Formula #{i}")),
+                        explanation.subexplanation(|| format!("Formula #{i}")),
                     )
                 })
                 .collect::<Result<IndexSet<_>, _>>()
-        }) {
-            Ok(knowledge_base) => knowledge_base,
-            Err(_) => {
-                return ExplainedResult {
-                    result: Err("Failed to parse knowledge base.".to_owned()),
-                    explanation: explanation.to_string(),
-                }
+        },
+    ) {
+        Ok(knowledge_base) => knowledge_base,
+        Err(_) => {
+            return ExplainedResult {
+                result: Err("Failed to parse knowledge base.".to_owned()),
+                explanation: explanation.to_string(),
             }
-        };
+        }
+    };
 
     let goal = match parse_formula(
         &goal,
         &signature,
-        explanation.subexplanation("Parsing goal"),
+        explanation.subexplanation(|| "Parsing goal"),
     ) {
         Ok(goal) => goal,
         Err(_) => {
@@ -156,24 +158,27 @@ pub fn prove(
 
     let proof = proof_situation.build_proof();
 
-    let detailed_proof = explanation.with_subexplanation("Building proof tree", |explanation| {
-        proof.explain(explanation.subexplanation("Original proof tree"));
+    let detailed_proof = explanation.with_subexplanation(
+        || "Building proof tree",
+        |explanation| {
+            proof.explain(explanation.subexplanation(|| "Original proof tree"));
 
-        let trimmed_proof = proof.trim();
+            let trimmed_proof = proof.trim();
 
-        trimmed_proof.explain(explanation.subexplanation("Trimmed proof tree"));
+            trimmed_proof.explain(explanation.subexplanation(|| "Trimmed proof tree"));
 
-        let description = trimmed_proof.describe(&IndexMap::default());
+            let description = trimmed_proof.describe(&IndexMap::default());
 
-        DetailedProof {
-            result: match trimmed_proof.result {
-                ProofResult::Proven => "proven".to_owned(),
-                ProofResult::Contradiction => "contradiction".to_owned(),
-                ProofResult::Unknown => "unknown".to_owned(),
-            },
-            description,
-        }
-    });
+            DetailedProof {
+                result: match trimmed_proof.result {
+                    ProofResult::Proven => "proven".to_owned(),
+                    ProofResult::Contradiction => "contradiction".to_owned(),
+                    ProofResult::Unknown => "unknown".to_owned(),
+                },
+                description,
+            }
+        },
+    );
 
     ExplainedResult {
         result: Ok(detailed_proof),

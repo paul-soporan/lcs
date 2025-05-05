@@ -290,11 +290,15 @@ where
     T: Debug,
 {
     move |input| {
-        let subexplanation = input.state.explanation.subexplanation(format!(
-            "Trying to parse {} at the beginning of '{}'",
-            what.magenta().markdown(),
-            input.cyan().markdown()
-        ));
+        let input_str = input.input;
+
+        let subexplanation = input.state.explanation.subexplanation(|| {
+            format!(
+                "Trying to parse {} at the beginning of '{}'",
+                what.magenta().markdown(),
+                input_str.cyan().markdown()
+            )
+        });
 
         let mut next_input = Input {
             input: input.input,
@@ -305,19 +309,18 @@ where
 
         let result = parser.parse_next(&mut next_input);
 
-        next_input
-            .state
-            .explanation
-            .with_subexplanation("Result", |explanation| match &result {
+        next_input.state.explanation.with_subexplanation(
+            || "Result",
+            |explanation| match &result {
                 Ok(result) => {
                     let result_any = result as &dyn Any;
                     if let Some(term) = result_any.downcast_ref::<Proposition>() {
                         explanation.use_tree(term.get_tree());
                     } else {
-                        explanation.step(format!("{:?}", result));
+                        explanation.step(|| format!("{:?}", result));
                     }
                 }
-                Err(e) => explanation.step(match e {
+                Err(e) => explanation.step(|| match e {
                     ErrMode::Backtrack(_) => "Backtrack".yellow().markdown(),
                     ErrMode::Cut(e) => format!(
                         "Fatal parsing error: {}",
@@ -325,7 +328,8 @@ where
                     ),
                     ErrMode::Incomplete(_) => unimplemented!(),
                 }),
-            });
+            },
+        );
 
         let _ = std::mem::replace(subexplanation, next_input.state.explanation);
         input.input = next_input.input;

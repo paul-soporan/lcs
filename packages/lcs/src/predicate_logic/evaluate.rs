@@ -72,19 +72,21 @@ impl Term {
         assignment: &Assignment<D>,
         explanation: &mut impl Explain,
     ) -> D {
-        explanation.step(format!(
-            "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_string().green().markdown()
-        ));
+        explanation.step(|| {
+            format!(
+                "υ<sub>σ<sub>I</sub></sub>({})",
+                self.to_string().green().markdown()
+            )
+        });
 
         let result = match self {
             Term::Variable(variable) => {
-                explanation.step(format!("σ<sub>I</sub>({})", variable.0.blue().markdown()));
+                explanation.step(|| format!("σ<sub>I</sub>({})", variable.0.blue().markdown()));
 
                 assignment.variables[&variable.0].clone()
             }
             Term::Constant(constant) => {
-                explanation.step(format!("I({})", constant.0.blue().markdown()));
+                explanation.step(|| format!("I({})", constant.0.blue().markdown()));
 
                 assignment.interpretation.constants[&constant.0].clone()
             }
@@ -93,25 +95,30 @@ impl Term {
                 arguments,
                 ..
             } => {
-                let function = explanation.with_subexplanation("", |explanation| {
-                    explanation.step(format!("I({})", function.magenta().markdown()));
+                let function = explanation.with_subexplanation(
+                    || "",
+                    |explanation| {
+                        explanation.step(|| format!("I({})", function.magenta().markdown()));
 
-                    let function = assignment.interpretation.functions.get(function).expect(
-                        format!(
-                            "Function {} is not defined in the interpretation.",
-                            function
-                        )
-                        .as_str(),
-                    );
+                        let function = assignment.interpretation.functions.get(function).expect(
+                            format!(
+                                "Function {} is not defined in the interpretation.",
+                                function
+                            )
+                            .as_str(),
+                        );
 
-                    explanation.step(format!("'{}'", function.name.magenta().markdown()));
+                        explanation.step(|| format!("'{}'", function.name.magenta().markdown()));
 
-                    function
-                });
+                        function
+                    },
+                );
 
                 let arguments = arguments
                     .iter()
-                    .map(|argument| argument.evaluate(assignment, explanation.subexplanation("")))
+                    .map(|argument| {
+                        argument.evaluate(assignment, explanation.subexplanation(|| ""))
+                    })
                     .collect::<Vec<_>>();
 
                 explanation.merge_subexplanations(|subexplanations| match subexplanations {
@@ -123,7 +130,7 @@ impl Term {
             }
         };
 
-        explanation.step(format!("'{}'", result.to_string().red().markdown()));
+        explanation.step(|| format!("'{}'", result.to_string().red().markdown()));
 
         result
     }
@@ -135,10 +142,12 @@ impl Formula {
         assignment: &Assignment<D>,
         explanation: &mut impl Explain,
     ) -> TruthValue {
-        explanation.step(format!(
-            "υ<sub>σ<sub>I</sub></sub>({})",
-            self.to_string().green().markdown()
-        ));
+        explanation.step(|| {
+            format!(
+                "υ<sub>σ<sub>I</sub></sub>({})",
+                self.to_string().green().markdown()
+            )
+        });
 
         let result = match self {
             Formula::Tautology => TruthValue(true),
@@ -148,25 +157,30 @@ impl Formula {
                 arguments,
                 ..
             } => {
-                let predicate = explanation.with_subexplanation("", |explanation| {
-                    explanation.step(format!("I({})", predicate.magenta().markdown()));
+                let predicate = explanation.with_subexplanation(
+                    || "",
+                    |explanation| {
+                        explanation.step(|| format!("I({})", predicate.magenta().markdown()));
 
-                    let predicate = assignment.interpretation.predicates.get(predicate).expect(
-                        format!(
-                            "Predicate {} is not defined in the interpretation.",
-                            predicate
-                        )
-                        .as_str(),
-                    );
+                        let predicate = assignment.interpretation.predicates.get(predicate).expect(
+                            format!(
+                                "Predicate {} is not defined in the interpretation.",
+                                predicate
+                            )
+                            .as_str(),
+                        );
 
-                    explanation.step(format!("'{}'", predicate.name.magenta().markdown()));
+                        explanation.step(|| format!("'{}'", predicate.name.magenta().markdown()));
 
-                    predicate
-                });
+                        predicate
+                    },
+                );
 
                 let arguments = arguments
                     .iter()
-                    .map(|argument| argument.evaluate(assignment, explanation.subexplanation("")))
+                    .map(|argument| {
+                        argument.evaluate(assignment, explanation.subexplanation(|| ""))
+                    })
                     .collect::<Vec<_>>();
 
                 explanation.merge_subexplanations(|subexplanations| match subexplanations {
@@ -211,7 +225,7 @@ impl Formula {
             }
         };
 
-        explanation.step(format!("'{}'", result.to_string().red().markdown()));
+        explanation.step(|| format!("'{}'", result.to_string().red().markdown()));
 
         result
     }

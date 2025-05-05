@@ -18,52 +18,47 @@ pub fn simplify_proposition(
 ) -> Proposition {
     match proposition {
         Proposition::Tautology => {
-            explanation.step(format!(
-                "Tautology: {}",
-                proposition.to_string().red().markdown()
-            ));
+            explanation.step(|| format!("Tautology: {}", proposition.to_string().red().markdown()));
 
             proposition.clone()
         }
         Proposition::Contradiction => {
-            explanation.step(format!(
-                "Contradiction: {}",
-                proposition.to_string().red().markdown()
-            ));
+            explanation.step(|| {
+                format!(
+                    "Contradiction: {}",
+                    proposition.to_string().red().markdown()
+                )
+            });
 
             proposition.clone()
         }
         Proposition::Atomic(p) => {
-            explanation.step(format!(
-                "Positive literal: {}",
-                p.to_string().red().markdown()
-            ));
+            explanation.step(|| format!("Positive literal: {}", p.to_string().red().markdown()));
 
             proposition.clone()
         }
         Proposition::Negation(box Proposition::Atomic(p)) => {
-            explanation.step(format!(
-                "Negative literal: {}",
-                format!("¬{p}").red().markdown()
-            ));
+            explanation.step(|| format!("Negative literal: {}", format!("¬{p}").red().markdown()));
 
             proposition.clone()
         }
         p => explanation.with_subexplanation(
-            format!(
-                "Simplifying proposition: {}",
-                p.to_string().blue().markdown()
-            ),
+            || {
+                format!(
+                    "Simplifying proposition: {}",
+                    p.to_string().blue().markdown()
+                )
+            },
             |explanation| {
                 let result = match p {
                     Proposition::Negation(proposition) => {
-                        simplify_negation(proposition, explanation.subexplanation("Negation"))
+                        simplify_negation(proposition, explanation.subexplanation(|| "Negation"))
                     }
 
                     Proposition::Conjunction(propositions) => {
                         match simplify_conjunction(
                             propositions,
-                            explanation.subexplanation("Conjunction"),
+                            explanation.subexplanation(|| "Conjunction"),
                             true,
                         ) {
                             None => Proposition::Contradiction,
@@ -76,7 +71,7 @@ pub fn simplify_proposition(
                     Proposition::Disjunction(propositions) => {
                         match simplify_disjunction(
                             propositions,
-                            explanation.subexplanation("Disjunction"),
+                            explanation.subexplanation(|| "Disjunction"),
                             true,
                         ) {
                             None => Proposition::Tautology,
@@ -90,7 +85,7 @@ pub fn simplify_proposition(
                     proposition => proposition.clone(),
                 };
 
-                explanation.step(format!("Result: {}", result.to_string().red().markdown()));
+                explanation.step(|| format!("Result: {}", result.to_string().red().markdown()));
 
                 result
             },
@@ -112,10 +107,9 @@ pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
             let proposition = match simplify_components {
                 true => simplify_proposition(
                     &p.clone().into(),
-                    explanation.subexplanation(format!(
-                        "Component {}",
-                        format!("#{i}").magenta().markdown()
-                    )),
+                    explanation.subexplanation(|| {
+                        format!("Component {}", format!("#{i}").magenta().markdown())
+                    }),
                 ),
                 false => p.clone().into(),
             };
@@ -130,18 +124,18 @@ pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
     'outer: for p in propositions {
         match p {
             Proposition::Contradiction => {
-                explanation.step(law("F ∧ ⊥ ∼ ⊥"));
+                explanation.step(|| law("F ∧ ⊥ ∼ ⊥"));
                 return None;
             }
             Proposition::Tautology => {
-                explanation.step(law("F ∧ ⊤ ∼ F"));
+                explanation.step(|| law("F ∧ ⊤ ∼ F"));
                 continue;
             }
             p => {
                 if let Proposition::Disjunction(propositions) = &p {
                     for p in propositions {
                         if simplified.contains(p) {
-                            explanation.step(law("F ∧ (F ∨ G) ∼ F"));
+                            explanation.step(|| law("F ∧ (F ∨ G) ∼ F"));
                             continue 'outer;
                         }
                     }
@@ -151,12 +145,12 @@ pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
                     &p.negated(),
                     &mut DiscardedExplanation,
                 )) {
-                    explanation.step(law("F ∧ ¬F ∼ ⊥"));
+                    explanation.step(|| law("F ∧ ¬F ∼ ⊥"));
                     return None;
                 }
 
                 if !simplified.insert(p) {
-                    explanation.step(law("F ∧ F ∼ F"));
+                    explanation.step(|| law("F ∧ F ∼ F"));
                 }
             }
         }
@@ -179,10 +173,9 @@ pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
             let proposition = match simplify_components {
                 true => simplify_proposition(
                     &p.clone().into(),
-                    explanation.subexplanation(format!(
-                        "Component {}",
-                        format!("#{i}").magenta().markdown()
-                    )),
+                    explanation.subexplanation(|| {
+                        format!("Component {}", format!("#{i}").magenta().markdown())
+                    }),
                 ),
                 false => p.clone().into(),
             };
@@ -197,18 +190,18 @@ pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
     'outer: for p in propositions {
         match p {
             Proposition::Tautology => {
-                explanation.step(law("F ∨ ⊤ ∼ ⊤"));
+                explanation.step(|| law("F ∨ ⊤ ∼ ⊤"));
                 return None;
             }
             Proposition::Contradiction => {
-                explanation.step(law("F ∨ ⊥ ∼ F"));
+                explanation.step(|| law("F ∨ ⊥ ∼ F"));
                 continue;
             }
             p => {
                 if let Proposition::Conjunction(propositions) = &p {
                     for p in propositions {
                         if simplified.contains(p) {
-                            explanation.step(law("F ∨ (F ∧ G) ∼ F"));
+                            explanation.step(|| law("F ∨ (F ∧ G) ∼ F"));
                             continue 'outer;
                         }
                     }
@@ -218,12 +211,12 @@ pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
                     &p.negated(),
                     &mut DiscardedExplanation,
                 )) {
-                    explanation.step(law("F ∨ ¬F ∼ ⊤"));
+                    explanation.step(|| law("F ∨ ¬F ∼ ⊤"));
                     return None;
                 }
 
                 if !simplified.insert(p) {
-                    explanation.step(law("F ∨ F ∼ F"));
+                    explanation.step(|| law("F ∨ F ∼ F"));
                 }
             }
         }
@@ -238,18 +231,18 @@ pub fn simplify_negation(
 ) -> Proposition {
     match simplify_proposition(
         negated_proposition,
-        explanation.subexplanation("Negated proposition"),
+        explanation.subexplanation(|| "Negated proposition"),
     ) {
         Proposition::Tautology => {
-            explanation.step(law("¬⊤ ∼ ⊥"));
+            explanation.step(|| law("¬⊤ ∼ ⊥"));
             Proposition::Contradiction
         }
         Proposition::Contradiction => {
-            explanation.step(law("¬⊥ ∼ ⊤"));
+            explanation.step(|| law("¬⊥ ∼ ⊤"));
             Proposition::Tautology
         }
         Proposition::Negation(box proposition) => {
-            explanation.step(law("¬(¬F) ∼ F"));
+            explanation.step(|| law("¬(¬F) ∼ F"));
             proposition
         }
         proposition => proposition.negated(),

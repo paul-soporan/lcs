@@ -746,17 +746,17 @@ fn exercise_5() {
 
     first_expression.evaluate(
         &natural_numbers_assignment,
-        explanation.subexplanation("First expression"),
+        explanation.subexplanation(|| "First expression"),
     );
 
     second_expression.evaluate(
         &natural_numbers_assignment,
-        explanation.subexplanation("Second expression"),
+        explanation.subexplanation(|| "Second expression"),
     );
 
     third_expression.evaluate(
         &natural_numbers_assignment,
-        explanation.subexplanation("Third expression"),
+        explanation.subexplanation(|| "Third expression"),
     );
 
     println!(
@@ -779,17 +779,17 @@ fn exercise_5() {
 
     first_expression.evaluate(
         &univariate_polynomials_over_reals_assignment,
-        explanation.subexplanation("First expression"),
+        explanation.subexplanation(|| "First expression"),
     );
 
     second_expression.evaluate(
         &univariate_polynomials_over_reals_assignment,
-        explanation.subexplanation("Second expression"),
+        explanation.subexplanation(|| "Second expression"),
     );
 
     third_expression.evaluate(
         &univariate_polynomials_over_reals_assignment,
-        explanation.subexplanation("Third expression"),
+        explanation.subexplanation(|| "Third expression"),
     );
 
     println!(
@@ -807,17 +807,17 @@ fn exercise_5() {
 
     first_expression.evaluate(
         &sets_assignment,
-        explanation.subexplanation("First expression"),
+        explanation.subexplanation(|| "First expression"),
     );
 
     second_expression.evaluate(
         &sets_assignment,
-        explanation.subexplanation("Second expression"),
+        explanation.subexplanation(|| "Second expression"),
     );
 
     third_expression.evaluate(
         &sets_assignment,
-        explanation.subexplanation("Third expression"),
+        explanation.subexplanation(|| "Third expression"),
     );
 
     println!(
@@ -838,17 +838,17 @@ fn exercise_5() {
 
     first_expression.evaluate(
         &strings_assignment,
-        explanation.subexplanation("First expression"),
+        explanation.subexplanation(|| "First expression"),
     );
 
     second_expression.evaluate(
         &strings_assignment,
-        explanation.subexplanation("Second expression"),
+        explanation.subexplanation(|| "Second expression"),
     );
 
     third_expression.evaluate(
         &strings_assignment,
-        explanation.subexplanation("Third expression"),
+        explanation.subexplanation(|| "Third expression"),
     );
 
     println!(

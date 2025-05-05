@@ -42,43 +42,56 @@ impl Substitution {
             mapping: IndexMap::new(),
         };
 
-        explanation.with_subexplanation("", |explanation| {
-            for (variable, term) in &self.mapping {
-                explanation.with_subexplanation("", |explanation| {
-                    let new_term = term.with_substitution(other, explanation.subexplanation(""));
+        explanation.with_subexplanation(
+            || "",
+            |explanation| {
+                for (variable, term) in &self.mapping {
+                    explanation.with_subexplanation(
+                        || "",
+                        |explanation| {
+                            let new_term =
+                                term.with_substitution(other, explanation.subexplanation(|| ""));
 
-                    explanation.merge_subexplanations(|subexplanations| {
-                        format!("{} ← {}", variable, subexplanations[0])
-                    });
+                            explanation.merge_subexplanations(|subexplanations| {
+                                format!("{} ← {}", variable, subexplanations[0])
+                            });
 
-                    if new_term != Term::Variable(variable.clone()) {
-                        new_substitution.mapping.insert(variable.clone(), new_term);
-                    }
-                });
-            }
-
-            explanation.merge_subexplanations(|subexplanations| {
-                format!("{{{}}}", subexplanations.join(", "))
-            });
-        });
-
-        explanation.with_subexplanation("", |explanation| {
-            for (variable, term) in &other.mapping {
-                if !self.mapping.contains_key(variable) {
-                    explanation.with_subexplanation("", |explanation| {
-                        explanation.step(format!("{variable} ← {term}"));
-
-                        new_substitution
-                            .mapping
-                            .insert(variable.clone(), term.clone());
-                    });
+                            if new_term != Term::Variable(variable.clone()) {
+                                new_substitution.mapping.insert(variable.clone(), new_term);
+                            }
+                        },
+                    );
                 }
-            }
 
-            explanation.merge_subexplanations(|subexplanations| {
-                format!("{{{}}}", subexplanations.join(", "))
-            });
-        });
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{{{}}}", subexplanations.join(", "))
+                });
+            },
+        );
+
+        explanation.with_subexplanation(
+            || "",
+            |explanation| {
+                for (variable, term) in &other.mapping {
+                    if !self.mapping.contains_key(variable) {
+                        explanation.with_subexplanation(
+                            || "",
+                            |explanation| {
+                                explanation.step(|| format!("{variable} ← {term}"));
+
+                                new_substitution
+                                    .mapping
+                                    .insert(variable.clone(), term.clone());
+                            },
+                        );
+                    }
+                }
+
+                explanation.merge_subexplanations(|subexplanations| {
+                    format!("{{{}}}", subexplanations.join(", "))
+                });
+            },
+        );
 
         explanation.merge_subexplanations(|subexplanations| {
             format!(

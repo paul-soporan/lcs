@@ -78,12 +78,15 @@ pub trait Solve {
         explanation: &mut impl Explain,
     ) -> Self::Result {
         let proposition = proposition.into();
+        let proposition_string = proposition.to_string();
 
         explanation.with_subexplanation(
-            format!(
-                "Creating a satisfiability solver for {}",
-                proposition.to_string().blue().markdown()
-            ),
+            || {
+                format!(
+                    "Creating a satisfiability solver for {}",
+                    proposition_string.blue().markdown()
+                )
+            },
             |explanation| {
                 let nnf = NegationNormalForm::from_proposition(proposition, explanation);
                 let cnf = ConjunctiveNormalForm::from_negation_normal_form(nnf, explanation);
@@ -134,31 +137,35 @@ pub trait Solve {
         let proposition = proposition.into();
 
         explanation.with_subexplanation(
-            format!(
-                "Creating a validity solver for {}",
-                proposition.to_string().blue().markdown()
-            ),
+            || {
+                format!(
+                    "Creating a validity solver for {}",
+                    proposition.to_string().blue().markdown()
+                )
+            },
             |explanation| {
                 let negated_proposition = proposition.negated();
 
                 let mut result =
                     self.check_satisfiability(negated_proposition.clone(), explanation);
 
-                explanation.step(format!(
-                    "{} is {}, therefore {} is {}",
-                    negated_proposition.to_string().blue().markdown(),
-                    if result.value() {
-                        "satisfiable".green().markdown()
-                    } else {
-                        "unsatisfiable".red().markdown()
-                    },
-                    proposition.to_string().blue().markdown(),
-                    if !result.value() {
-                        "valid".green().markdown()
-                    } else {
-                        "invalid".red().markdown()
-                    },
-                ));
+                explanation.step(|| {
+                    format!(
+                        "{} is {}, therefore {} is {}",
+                        negated_proposition.to_string().blue().markdown(),
+                        if result.value() {
+                            "satisfiable".green().markdown()
+                        } else {
+                            "unsatisfiable".red().markdown()
+                        },
+                        proposition.to_string().blue().markdown(),
+                        if !result.value() {
+                            "valid".green().markdown()
+                        } else {
+                            "invalid".red().markdown()
+                        },
+                    )
+                });
 
                 result.flip_value();
 
@@ -178,28 +185,32 @@ pub trait Solve {
         let proposition = Proposition::Conjunction(propositions);
 
         explanation.with_subexplanation(
-            format!(
-                "Creating a logical consequence solver for {}",
-                consequence.to_string().blue().markdown()
-            ),
+            || {
+                format!(
+                    "Creating a logical consequence solver for {}",
+                    consequence.to_string().blue().markdown()
+                )
+            },
             |explanation| {
                 let mut result = self.check_satisfiability(proposition.clone(), explanation);
 
-                explanation.step(format!(
-                    "{} is {}, therefore {} is {}",
-                    proposition.to_string().blue().markdown(),
-                    if result.value() {
-                        "satisfiable".green().markdown()
-                    } else {
-                        "unsatisfiable".red().markdown()
-                    },
-                    consequence.to_string().blue().markdown(),
-                    if !result.value() {
-                        "true".green().markdown()
-                    } else {
-                        "false".red().markdown()
-                    },
-                ));
+                explanation.step(|| {
+                    format!(
+                        "{} is {}, therefore {} is {}",
+                        proposition.to_string().blue().markdown(),
+                        if result.value() {
+                            "satisfiable".green().markdown()
+                        } else {
+                            "unsatisfiable".red().markdown()
+                        },
+                        consequence.to_string().blue().markdown(),
+                        if !result.value() {
+                            "true".green().markdown()
+                        } else {
+                            "false".red().markdown()
+                        },
+                    )
+                });
 
                 result.flip_value();
 

@@ -60,7 +60,7 @@ impl From<Literal> for NegationNormalForm {
 
 impl NegationNormalForm {
     pub fn from_proposition(proposition: Proposition, explanation: &mut impl Explain) -> Self {
-        explanation.with_subexplanation(
+        explanation.with_subexplanation(||
             format!(
                 "Computing NNF for proposition: {}",
                 proposition.to_string().blue().markdown()
@@ -74,7 +74,7 @@ impl NegationNormalForm {
                     Proposition::Contradiction => unimplemented!(),
                     Proposition::Atomic(p) => Literal(p, true).into(),
 
-                    Proposition::Conjunction(propositions) => explanation.with_subexplanation(
+                    Proposition::Conjunction(propositions) => explanation.with_subexplanation(||
                         "Conjunction",
                         |explanation| {
                             let propositions = propositions
@@ -83,7 +83,7 @@ impl NegationNormalForm {
                                 .map(|(i, p)| {
                                     NegationNormalForm::from_proposition(
                                         p,
-                                        explanation.subexplanation(format!(
+                                        explanation.subexplanation(|| format!(
                                             "Component {}",
                                             format!("#{i}").magenta().markdown()
                                         )),
@@ -99,7 +99,7 @@ impl NegationNormalForm {
                             }
                         },
                     ),
-                    Proposition::Disjunction(propositions) => explanation.with_subexplanation(
+                    Proposition::Disjunction(propositions) => explanation.with_subexplanation(||
                         "Disjunction",
                         |explanation| {
                             let propositions = propositions
@@ -108,7 +108,7 @@ impl NegationNormalForm {
                                 .map(|(i, p)| {
                                     NegationNormalForm::from_proposition(
                                         p,
-                                        explanation.subexplanation(format!(
+                                        explanation.subexplanation(|| format!(
                                             "Component {}",
                                             format!("#{i}").magenta().markdown()
                                         )),
@@ -129,7 +129,7 @@ impl NegationNormalForm {
                         Proposition::Atomic(p) => Literal(p, false).into(),
 
                         Proposition::Conjunction(propositions) => {
-                            explanation.step(law("¬(F ∧ G) ∼ ¬F ∨ ¬G"));
+                            explanation.step(|| law("¬(F ∧ G) ∼ ¬F ∨ ¬G"));
 
                             let propositions = propositions
                                 .into_iter()
@@ -138,7 +138,7 @@ impl NegationNormalForm {
 
                             match simplify_disjunction(
                                 &propositions.clone(),
-                                explanation.subexplanation(format!(
+                                explanation.subexplanation(|| format!(
                                     "Simplifying resulting disjunction: {}",
                                     Proposition::Disjunction(propositions)
                                         .to_string()
@@ -148,7 +148,7 @@ impl NegationNormalForm {
                                 true,
                             ) {
                                 None => NegationNormalForm::Conjunction(btreeset! {}),
-                                Some(propositions) => explanation.with_subexplanation(
+                                Some(propositions) => explanation.with_subexplanation(||
                                     "Disjunction",
                                     |explanation| {
                                         NegationNormalForm::Disjunction(
@@ -158,7 +158,7 @@ impl NegationNormalForm {
                                                 .map(|(i, p)| {
                                                     NegationNormalForm::from_proposition(
                                                         p,
-                                                        explanation.subexplanation(format!(
+                                                        explanation.subexplanation(|| format!(
                                                             "Component {}",
                                                             format!("#{}", i)
                                                                 .magenta()
@@ -174,7 +174,7 @@ impl NegationNormalForm {
                         }
 
                         Proposition::Disjunction(propositions) => {
-                            explanation.step(law("¬(F ∨ G) ∼ ¬F ∧ ¬G"));
+                            explanation.step(|| law("¬(F ∨ G) ∼ ¬F ∧ ¬G"));
 
                             let propositions = propositions
                                 .into_iter()
@@ -183,7 +183,7 @@ impl NegationNormalForm {
 
                             match simplify_conjunction(
                                 &propositions.clone(),
-                                explanation.subexplanation(format!(
+                                explanation.subexplanation(|| format!(
                                     "Simplifying resulting conjunction: {}",
                                     Proposition::Conjunction(propositions)
                                         .to_string()
@@ -193,7 +193,7 @@ impl NegationNormalForm {
                                 true,
                             ) {
                                 None => NegationNormalForm::Disjunction(btreeset! {}),
-                                Some(propositions) => explanation.with_subexplanation(
+                                Some(propositions) => explanation.with_subexplanation(||
                                     "Conjunction",
                                     |explanation| {
                                         NegationNormalForm::Conjunction(
@@ -203,7 +203,7 @@ impl NegationNormalForm {
                                                 .map(|(i, p)| {
                                                     NegationNormalForm::from_proposition(
                                                         p,
-                                                        explanation.subexplanation(format!(
+                                                        explanation.subexplanation(|| format!(
                                                             "Component {}",
                                                             format!("#{}", i)
                                                                 .magenta()
@@ -238,7 +238,7 @@ impl NegationNormalForm {
                     }
                 };
 
-                explanation.step(format!("NNF: {}", result.to_string().red().markdown()));
+                explanation.step(|| format!("NNF: {}", result.to_string().red().markdown()));
 
                 result
             },
@@ -280,10 +280,12 @@ impl DisjunctiveNormalForm {
         nnf: NegationNormalForm,
         explanation: &mut impl Explain,
     ) -> Self {
-        explanation.with_subexplanation(
+        let nnf_string = nnf.to_string();
+
+        explanation.with_subexplanation(||
             format!(
                 "Computing DNF for proposition: {}",
-                nnf.to_string().blue().markdown()
+                nnf_string.blue().markdown()
             ),
             |explanation| {
                 let clauses = match nnf {
@@ -291,22 +293,22 @@ impl DisjunctiveNormalForm {
                         return DisjunctiveNormalForm(btreeset! {btreeset! {literal}})
                     }
                     NegationNormalForm::Conjunction(propositions) => {
-                        explanation.with_subexplanation("Conjunction", |explanation| {
+                        explanation.with_subexplanation(|| "Conjunction", |explanation| {
                             let mut literals = btreeset! {};
                             let mut disjunctions = btreeset! {};
 
                             for (i, proposition) in propositions.into_iter().enumerate() {
-                                explanation.with_subexplanation(format!("Component {}", format!("#{i}").magenta().markdown()), |explanation| {
+                                explanation.with_subexplanation(|| format!("Component {}", format!("#{i}").magenta().markdown()), |explanation| {
                                     match proposition {
                                         NegationNormalForm::Literal(literal) => {
-                                            explanation.step(format!(
+                                            explanation.step(|| format!(
                                                 "Literal: {}",
                                                 literal.to_string().blue().markdown()
                                             ));
                                             literals.insert(literal);
                                         }
                                         NegationNormalForm::Disjunction(propositions) => {
-                                            explanation.with_subexplanation("Disjunction", |explanation| {
+                                            explanation.with_subexplanation(|| "Disjunction", |explanation| {
                                                 let cnf = ConjunctiveNormalForm::from_negation_normal_form(
                                                     NegationNormalForm::Disjunction(propositions),
                                                     explanation,
@@ -325,7 +327,7 @@ impl DisjunctiveNormalForm {
 
                             disjunctions.extend(literals.into_iter().map(|literal| btreeset! {literal}));
 
-                            explanation.step(format!(
+                            explanation.step(|| format!(
                                 "Conjunction: {}",
                                 ConjunctiveNormalForm(disjunctions.clone())
                                     .to_string()
@@ -333,7 +335,7 @@ impl DisjunctiveNormalForm {
                                     .markdown()
                             ));
 
-                            explanation.step(law("F ∧ (G ∨ H) ∼ (F ∧ G) ∨ (F ∧ H)"));
+                            explanation.step(|| law("F ∧ (G ∨ H) ∼ (F ∧ G) ∨ (F ∧ H)"));
 
                             disjunctions
                                 .into_iter()
@@ -349,22 +351,22 @@ impl DisjunctiveNormalForm {
                             })
                     }
                     NegationNormalForm::Disjunction(propositions) => explanation
-                        .with_subexplanation("Disjunction", |explanation| {
+                        .with_subexplanation(|| "Disjunction", |explanation| {
                             let mut clauses = btreeset! {};
 
                             for (i, proposition) in propositions.into_iter().enumerate() {
-                                explanation.with_subexplanation(
+                                explanation.with_subexplanation(||
                                     format!("Component {}", format!("#{i}").magenta().markdown()),
                                     |explanation| match proposition {
                                         NegationNormalForm::Literal(literal) => {
-                                            explanation.step(format!(
+                                            explanation.step(|| format!(
                                                 "Literal: {}",
                                                 literal.to_string().blue().markdown()
                                             ));
                                             clauses.insert(btreeset! {literal});
                                         }
                                         NegationNormalForm::Conjunction(propositions) => {
-                                            explanation.with_subexplanation("Conjunction", |explanation| {
+                                            explanation.with_subexplanation(|| "Conjunction", |explanation| {
                                                 let dnf =
                                                     DisjunctiveNormalForm::from_negation_normal_form(
                                                         NegationNormalForm::Conjunction(propositions),
@@ -398,7 +400,7 @@ impl DisjunctiveNormalForm {
 
                 let disjunction = simplify_disjunction(
                     &disjunction.clone(),
-                    explanation.subexplanation(format!(
+                    explanation.subexplanation(|| format!(
                         "Simplifying resulting disjunction: {}",
                         NegationNormalForm::Disjunction(disjunction.into_iter().collect())
                             .to_string()
@@ -430,7 +432,7 @@ impl DisjunctiveNormalForm {
                     ),
                 };
 
-                explanation.step(format!("DNF: {}", result.to_string().red().markdown()));
+                explanation.step(|| format!("DNF: {}", result.to_string().red().markdown()));
 
                 result
             },
@@ -477,10 +479,12 @@ impl ConjunctiveNormalForm {
         nnf: NegationNormalForm,
         explanation: &mut impl Explain,
     ) -> Self {
-        explanation.with_subexplanation(
+        let nnf_string = nnf.to_string();
+
+        explanation.with_subexplanation(||
             format!(
                 "Computing CNF for proposition: {}",
-                nnf.to_string().blue().markdown()
+                nnf_string.blue().markdown()
             ),
             |explanation| {
                 let clauses = match nnf {
@@ -488,21 +492,21 @@ impl ConjunctiveNormalForm {
                         return ConjunctiveNormalForm(btreeset! {btreeset! {literal}})
                     }
                     NegationNormalForm::Conjunction(propositions) => explanation
-                        .with_subexplanation("Conjunction", |explanation| {
+                        .with_subexplanation(|| "Conjunction", |explanation| {
                             let mut clauses = btreeset! {};
 
                             for (i, proposition) in propositions.into_iter().enumerate() {
-                                explanation.with_subexplanation(format!("Component {}", format!("#{i}").magenta().markdown()), |explanation| {
+                                explanation.with_subexplanation(|| format!("Component {}", format!("#{i}").magenta().markdown()), |explanation| {
                                     match proposition {
                                         NegationNormalForm::Literal(literal) => {
-                                            explanation.step(format!(
+                                            explanation.step(|| format!(
                                                 "Literal: {}",
                                                 literal.to_string().blue().markdown()
                                             ));
                                             clauses.insert(btreeset! {literal});
                                         }
                                         NegationNormalForm::Disjunction(propositions) => explanation
-                                            .with_subexplanation("Disjunction", |explanation| {
+                                            .with_subexplanation(|| "Disjunction", |explanation| {
                                                 let dnf: ConjunctiveNormalForm =
                                                     ConjunctiveNormalForm::from_negation_normal_form(
                                                         NegationNormalForm::Disjunction(propositions),
@@ -520,23 +524,23 @@ impl ConjunctiveNormalForm {
                             clauses
                         }),
                     NegationNormalForm::Disjunction(propositions) => {
-                        explanation.with_subexplanation("Disjunction", |explanation| {
+                        explanation.with_subexplanation(|| "Disjunction", |explanation| {
                             let mut literals = btreeset! {};
                             let mut conjunctions = btreeset! {};
 
                             for (i, proposition) in propositions.into_iter().enumerate() {
-                                explanation.with_subexplanation(
+                                explanation.with_subexplanation(||
                                     format!("Component {}", format!("#{i}").magenta().markdown()),
                                     |explanation| match proposition {
                                         NegationNormalForm::Literal(literal) => {
-                                            explanation.step(format!(
+                                            explanation.step(|| format!(
                                                 "Literal: {}",
                                                 literal.to_string().blue().markdown()
                                             ));
                                             literals.insert(literal);
                                         }
                                         NegationNormalForm::Conjunction(propositions) => {
-                                            explanation.with_subexplanation("Conjunction", |explanation| {
+                                            explanation.with_subexplanation(|| "Conjunction", |explanation| {
                                                 let dnf = DisjunctiveNormalForm::from_negation_normal_form(
                                                     NegationNormalForm::Conjunction(propositions),
                                                     explanation,
@@ -553,7 +557,7 @@ impl ConjunctiveNormalForm {
 
                             conjunctions.extend(literals.into_iter().map(|literal| btreeset! {literal}));
 
-                            explanation.step(format!(
+                            explanation.step(|| format!(
                                 "Disjunction: {}",
                                 DisjunctiveNormalForm(conjunctions.clone())
                                     .to_string()
@@ -561,7 +565,7 @@ impl ConjunctiveNormalForm {
                                     .markdown()
                             ));
 
-                            explanation.step(law("F ∨ (G ∧ H) ∼ (F ∨ G) ∧ (F ∨ H)"));
+                            explanation.step(|| law("F ∨ (G ∧ H) ∼ (F ∨ G) ∧ (F ∨ H)"));
 
                             conjunctions
                                 .into_iter()
@@ -592,7 +596,7 @@ impl ConjunctiveNormalForm {
 
                 let conjunction = simplify_conjunction(
                     &conjunction.clone(),
-                    explanation.subexplanation(format!(
+                    explanation.subexplanation(|| format!(
                         "Simplifying resulting conjunction: {}",
                         NegationNormalForm::Conjunction(conjunction.into_iter().collect())
                             .to_string()
@@ -624,7 +628,7 @@ impl ConjunctiveNormalForm {
                     ),
                 };
 
-                explanation.step(format!("CNF: {}", result.to_string().red().markdown()));
+                explanation.step(|| format!("CNF: {}", result.to_string().red().markdown()));
 
                 result
             },

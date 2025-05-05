@@ -108,7 +108,7 @@ impl DpllEngine {
 
     fn choose_literal(&self) -> Option<IntLiteral> {
         match self.branching_heuristic {
-            DpllBranchingHeuristic::First => self.clauses[0].0.first().cloned(),
+            DpllBranchingHeuristic::First => self.clauses[0].0.first().copied(),
             DpllBranchingHeuristic::Random => {
                 unimplemented!()
             }
@@ -124,27 +124,29 @@ impl DpllEngine {
         self.split_count += 1;
 
         explanation.with_subexplanation(
-            format!("Splitting on {}", literal.to_string().green().markdown()),
+            || format!("Splitting on {}", literal.to_string().green().markdown()),
             |explanation| {
                 let clauses = self.clauses.clone();
                 let literals = self.required_literals.clone();
 
-                let positive_literal_clause = Clause(OrderSet::from([literal.clone()]));
+                let positive_literal_clause = Clause(OrderSet::from([literal]));
                 let positive_literal_explanation = format!(
                     "Branch with clause {}",
                     positive_literal_clause.to_string().green().markdown()
                 );
 
                 self.clauses.push(positive_literal_clause);
-                self.required_literals.insert(literal.clone());
+                self.required_literals.insert(literal);
 
                 let positive_literal_result =
-                    self.apply_dpll(explanation.subexplanation(positive_literal_explanation));
+                    self.apply_dpll(explanation.subexplanation(|| positive_literal_explanation));
                 if positive_literal_result {
-                    explanation.step(format!(
-                        "Result: {}; no need to check the other branch",
-                        "satisfiable".green().markdown()
-                    ));
+                    explanation.step(|| {
+                        format!(
+                            "Result: {}; no need to check the other branch",
+                            "satisfiable".green().markdown()
+                        )
+                    });
                     return true;
                 }
 
@@ -161,16 +163,18 @@ impl DpllEngine {
                 self.required_literals.insert(literal.complement());
 
                 let result =
-                    self.apply_dpll(explanation.subexplanation(negative_literal_explanation));
+                    self.apply_dpll(explanation.subexplanation(|| negative_literal_explanation));
 
-                explanation.step(format!(
-                    "Result: {}",
-                    if result {
-                        "satisfiable".green().markdown()
-                    } else {
-                        "unsatisfiable".red().markdown()
-                    }
-                ));
+                explanation.step(|| {
+                    format!(
+                        "Result: {}",
+                        if result {
+                            "satisfiable".green().markdown()
+                        } else {
+                            "unsatisfiable".red().markdown()
+                        }
+                    )
+                });
 
                 result
             },
@@ -178,34 +182,44 @@ impl DpllEngine {
     }
 
     fn apply_dpll(&mut self, explanation: &mut impl Explain) -> bool {
-        let result =
-            explanation.with_subexplanation("Applying the DPLL algorithm", |explanation| loop {
-                let explanation = explanation.subexplanation("DPLL step");
+        let result = explanation.with_subexplanation(
+            || "Applying the DPLL algorithm",
+            |explanation| loop {
+                let explanation = explanation.subexplanation(|| "DPLL step");
 
-                explanation.with_subexplanation("Current clauses", |explanation| {
-                    for (i, clause) in self.clauses.iter().enumerate() {
-                        explanation.step(format!(
-                            "{} {}",
-                            format!("({})", i).to_string().magenta().markdown(),
-                            clause.to_string().blue().markdown()
-                        ));
-                    }
-                });
+                explanation.with_subexplanation(
+                    || "Current clauses",
+                    |explanation| {
+                        for (i, clause) in self.clauses.iter().enumerate() {
+                            explanation.step(|| {
+                                format!(
+                                    "{} {}",
+                                    format!("({})", i).to_string().magenta().markdown(),
+                                    clause.to_string().blue().markdown()
+                                )
+                            });
+                        }
+                    },
+                );
 
                 if self.clauses.is_empty() {
-                    explanation.step(format!(
-                        "No clauses left, therefore the formula is {}",
-                        "satisfiable".green().markdown()
-                    ));
+                    explanation.step(|| {
+                        format!(
+                            "No clauses left, therefore the formula is {}",
+                            "satisfiable".green().markdown()
+                        )
+                    });
                     return true;
                 }
 
                 for clause in &self.clauses {
                     if clause.0.is_empty() {
-                        explanation.step(format!(
-                            "Found an empty clause, therefore the formula is {}",
-                            "unsatisfiable".red().markdown()
-                        ));
+                        explanation.step(|| {
+                            format!(
+                                "Found an empty clause, therefore the formula is {}",
+                                "unsatisfiable".red().markdown()
+                            )
+                        });
                         return false;
                     }
                 }
@@ -227,16 +241,19 @@ impl DpllEngine {
                 }
 
                 return self.apply_split(explanation);
-            });
-
-        explanation.step(format!(
-            "Result: {}",
-            if result {
-                "satisfiable".green().markdown()
-            } else {
-                "unsatisfiable".red().markdown()
             },
-        ));
+        );
+
+        explanation.step(|| {
+            format!(
+                "Result: {}",
+                if result {
+                    "satisfiable".green().markdown()
+                } else {
+                    "unsatisfiable".red().markdown()
+                },
+            )
+        });
 
         result
     }
@@ -247,25 +264,28 @@ impl DpllEngine {
     ) -> Interpretation {
         let mut interpretation = Interpretation::default();
 
-        explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {
-            for literal in &self.required_literals {
-                let literal = literal.to_literal();
+        explanation.with_subexplanation(
+            || "Building a satisfying truth valuation",
+            |explanation| {
+                for literal in &self.required_literals {
+                    let literal = literal.to_literal();
 
-                interpretation
-                    .0
-                    .insert(literal.0.clone(), TruthValue(literal.1));
+                    interpretation
+                        .0
+                        .insert(literal.0.clone(), TruthValue(literal.1));
 
-                explanation.step(format!(
-                    "Adding {} to the truth valuation",
-                    literal.to_string().green().markdown(),
-                ));
-            }
+                    explanation.step(|| {
+                        format!(
+                            "Adding {} to the truth valuation",
+                            literal.to_string().green().markdown(),
+                        )
+                    });
+                }
 
-            explanation.step(format!(
-                "Result: {}",
-                interpretation.to_string().green().markdown()
-            ));
-        });
+                explanation
+                    .step(|| format!("Result: {}", interpretation.to_string().green().markdown()));
+            },
+        );
 
         interpretation
     }
