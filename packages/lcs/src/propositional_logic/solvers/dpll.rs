@@ -1,15 +1,14 @@
 use std::collections::HashSet;
 
 use colored::Colorize;
-use indexmap::IndexSet;
 use ordermap::OrderSet;
 
 use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
+        dimacs::{ClauseSet, IntLiteral},
         evaluate::{Interpretation, TruthValue},
-        normal_forms::Literal,
     },
 };
 
@@ -76,8 +75,8 @@ impl DpllSolver {
 impl Solve for DpllSolver {
     type Result = DpllResult;
 
-    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpllResult {
-        let mut engine = DpllEngine::new(Vec::from_iter(clauses), self.branching_heuristic);
+    fn solve(&self, clause_set: ClauseSet, explanation: &mut impl Explain) -> DpllResult {
+        let mut engine = DpllEngine::new(clause_set, self.branching_heuristic);
         let value = engine.apply_dpll(explanation);
 
         DpllResult {
@@ -93,21 +92,21 @@ struct DpllEngine {
     // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<Clause>,
     branching_heuristic: DpllBranchingHeuristic,
-    required_literals: HashSet<Literal>,
+    required_literals: HashSet<IntLiteral>,
     split_count: usize,
 }
 
 impl DpllEngine {
-    fn new(clauses: Vec<Clause>, branching_heuristic: DpllBranchingHeuristic) -> Self {
+    fn new(clause_set: ClauseSet, branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
-            clauses,
+            clauses: Vec::from_iter(clause_set.clauses),
             branching_heuristic,
             required_literals: HashSet::new(),
             split_count: 0,
         }
     }
 
-    fn choose_literal(&self) -> Option<Literal> {
+    fn choose_literal(&self) -> Option<IntLiteral> {
         match self.branching_heuristic {
             DpllBranchingHeuristic::First => self.clauses[0].0.first().cloned(),
             DpllBranchingHeuristic::Random => {
@@ -250,6 +249,8 @@ impl DpllEngine {
 
         explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {
             for literal in &self.required_literals {
+                let literal = literal.to_literal();
+
                 interpretation
                     .0
                     .insert(literal.0.clone(), TruthValue(literal.1));

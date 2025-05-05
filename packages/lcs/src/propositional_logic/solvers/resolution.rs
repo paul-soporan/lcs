@@ -3,7 +3,9 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
-    explanation::Explain, markdown::Markdown, propositional_logic::evaluate::Interpretation,
+    explanation::Explain,
+    markdown::Markdown,
+    propositional_logic::{dimacs::ClauseSet, evaluate::Interpretation},
 };
 
 use super::solve::{Clause, Solve, SolverResult};
@@ -44,8 +46,8 @@ impl ResolutionSolver {
 impl Solve for ResolutionSolver {
     type Result = ResolutionResult;
 
-    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> ResolutionResult {
-        let mut engine = ResolutionEngine::new(clauses);
+    fn solve(&self, clause_set: ClauseSet, explanation: &mut impl Explain) -> ResolutionResult {
+        let mut engine = ResolutionEngine::new(clause_set);
         let value = engine.apply_resolution(explanation);
 
         ResolutionResult {
@@ -61,8 +63,10 @@ struct ResolutionEngine {
 }
 
 impl ResolutionEngine {
-    fn new(clauses: IndexSet<Clause>) -> Self {
-        Self { clauses }
+    fn new(clause_set: ClauseSet) -> Self {
+        Self {
+            clauses: clause_set.clauses,
+        }
     }
 
     fn apply_resolution(&mut self, explanation: &mut impl Explain) -> bool {
@@ -160,7 +164,7 @@ fn find_new_resolvent(
                             clause1
                                 .0
                                 .union(&clause2.0)
-                                .filter(|l| l.0 != literal.0)
+                                .filter(|l| l.abs() != literal.abs())
                                 .cloned()
                                 .collect(),
                         );

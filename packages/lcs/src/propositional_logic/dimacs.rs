@@ -1,21 +1,65 @@
-use std::{
-    collections::{BTreeSet, HashSet},
-    str::FromStr,
-};
+use std::{collections::HashSet, fmt::Display, num::NonZeroI32, str::FromStr};
 
-use super::{
-    normal_forms::{ConjunctiveNormalForm, Literal},
-    types::PropositionalVariable,
-};
+use indexmap::IndexSet;
 
-#[derive(Debug)]
-pub struct DimacsCnf {
-    pub variable_count: usize,
-    pub clause_count: usize,
-    pub cnf: ConjunctiveNormalForm,
+use super::{normal_forms::Literal, solvers::solve::Clause, types::PropositionalVariable};
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IntLiteral(NonZeroI32);
+
+impl IntLiteral {
+    pub fn new(value: i32) -> Self {
+        IntLiteral(NonZeroI32::new(value).expect("Value cannot be zero"))
+    }
+
+    pub fn abs(&self) -> Self {
+        IntLiteral(self.0.abs())
+    }
+
+    pub fn complement(&self) -> Self {
+        IntLiteral(-self.0)
+    }
+
+    pub fn is_positive(&self) -> bool {
+        self.0.get() > 0
+    }
+
+    pub fn is_negative(&self) -> bool {
+        self.0.get() < 0
+    }
+
+    pub fn to_literal(&self) -> Literal {
+        Literal::from(*self)
+    }
 }
 
-impl FromStr for DimacsCnf {
+impl Display for IntLiteral {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_positive() {
+            write!(f, "P{}", self.0)
+        } else {
+            write!(f, "¬P{}", -self.0)
+        }
+    }
+}
+
+impl From<IntLiteral> for Literal {
+    fn from(literal: IntLiteral) -> Self {
+        Literal(
+            PropositionalVariable(format!("P{}", literal.abs().0)),
+            literal.is_positive(),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct ClauseSet {
+    pub variable_count: usize,
+    pub clause_count: usize,
+    pub clauses: IndexSet<Clause>,
+}
+
+impl FromStr for ClauseSet {
     type Err = String;
 
     fn from_str(data: &str) -> Result<Self, Self::Err> {
@@ -23,12 +67,12 @@ impl FromStr for DimacsCnf {
     }
 }
 
-fn parse_dimacs_cnf(data: &str) -> Result<DimacsCnf, String> {
+fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
     let mut variables = HashSet::new();
 
     let mut variable_count = None;
     let mut clause_count = None;
-    let mut cnf = ConjunctiveNormalForm(BTreeSet::new());
+    let mut clauses = IndexSet::new();
 
     for line in data.lines() {
         // Skip empty lines and comments
@@ -49,30 +93,24 @@ fn parse_dimacs_cnf(data: &str) -> Result<DimacsCnf, String> {
                 return Err(format!("Invalid clause termination: {}", line));
             }
 
-            let clause = components
-                .iter()
-                .take(components.len() - 1)
-                .map(|&literal| {
-                    let n = literal.parse::<i32>().unwrap();
-                    if n == 0 {
-                        panic!("Unexpected zero in clause: {}", line);
-                    }
+            let clause = Clause(
+                components
+                    .iter()
+                    .take(components.len() - 1)
+                    .map(|&literal| {
+                        let n = literal.parse::<i32>().unwrap();
+                        if n == 0 {
+                            panic!("Unexpected zero in clause: {}", line);
+                        }
 
-                    if n < 0 {
-                        let variable = PropositionalVariable(format!("P{}", -n));
-                        variables.insert(variable.clone());
+                        variables.insert(n.abs());
 
-                        Literal(variable, false)
-                    } else {
-                        let variable = PropositionalVariable(format!("P{}", n));
-                        variables.insert(variable.clone());
+                        IntLiteral::new(n)
+                    })
+                    .collect(),
+            );
 
-                        Literal(variable, true)
-                    }
-                })
-                .collect::<BTreeSet<_>>();
-
-            cnf.0.insert(clause);
+            clauses.insert(clause);
         }
     }
 
@@ -91,18 +129,22 @@ fn parse_dimacs_cnf(data: &str) -> Result<DimacsCnf, String> {
     };
 
     let clause_count = if let Some(count) = clause_count {
-        if cnf.0.len() != count {
-            return Err(format!("Expected {} clauses, found {}", count, cnf.0.len()));
+        if clauses.len() != count {
+            return Err(format!(
+                "Expected {} clauses, found {}",
+                count,
+                clauses.len()
+            ));
         }
 
         count
     } else {
-        cnf.0.len()
+        clauses.len()
     };
 
-    Ok(DimacsCnf {
+    Ok(ClauseSet {
         variable_count,
         clause_count,
-        cnf,
+        clauses,
     })
 }

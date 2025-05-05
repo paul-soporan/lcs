@@ -4,17 +4,19 @@ use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
+        dimacs::{ClauseSet, IntLiteral},
         evaluate::Interpretation,
-        normal_forms::{ConjunctiveNormalForm, Literal, NegationNormalForm},
+        normal_forms::{ConjunctiveNormalForm, NegationNormalForm},
         types::{LogicalConsequence, Proposition},
     },
 };
 use colored::Colorize;
 use indexmap::IndexSet;
+use itertools::Itertools;
 use ordermap::OrderSet;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Clause(pub OrderSet<Literal>);
+pub struct Clause(pub OrderSet<IntLiteral>);
 
 impl PartialOrd for Clause {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -42,12 +44,7 @@ impl Ord for Clause {
 
 impl Display for Clause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let literals = self
-            .0
-            .iter()
-            .map(|literal| literal.to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let literals = self.0.iter().map(|literal| literal.to_string()).join(", ");
 
         write!(f, "{{{}}}", literals)
     }
@@ -65,20 +62,14 @@ pub trait SolverResult {
 pub trait Solve {
     type Result: SolverResult;
 
-    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> Self::Result;
+    fn solve(&self, clauses: ClauseSet, explanation: &mut impl Explain) -> Self::Result;
 
-    fn check_cnf_satisfiability(
+    fn check_clause_set_satisfiability(
         &self,
-        cnf: ConjunctiveNormalForm,
+        clause_set: ClauseSet,
         explanation: &mut impl Explain,
     ) -> Self::Result {
-        let clauses = cnf
-            .0
-            .into_iter()
-            .map(|clause| Clause(OrderSet::from_iter(clause)))
-            .collect();
-
-        self.solve(clauses, explanation)
+        self.solve(clause_set, explanation)
     }
 
     fn check_satisfiability(
@@ -97,7 +88,40 @@ pub trait Solve {
                 let nnf = NegationNormalForm::from_proposition(proposition, explanation);
                 let cnf = ConjunctiveNormalForm::from_negation_normal_form(nnf, explanation);
 
-                self.check_cnf_satisfiability(cnf, explanation)
+                let mut variables = IndexSet::new();
+
+                let clauses = cnf
+                    .0
+                    .into_iter()
+                    .map(|clause| {
+                        Clause(
+                            clause
+                                .into_iter()
+                                .map(|literal| {
+                                    let abs =
+                                        variables.get_index_of(&literal.0).unwrap_or_else(|| {
+                                            variables.insert(literal.0.clone());
+                                            variables.len() - 1
+                                        }) + 1;
+
+                                    IntLiteral::new(if literal.1 {
+                                        abs as i32
+                                    } else {
+                                        -(abs as i32)
+                                    })
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect::<IndexSet<_>>();
+
+                let clause_set = ClauseSet {
+                    variable_count: variables.len(),
+                    clause_count: clauses.len(),
+                    clauses,
+                };
+
+                self.check_clause_set_satisfiability(clause_set, explanation)
             },
         )
     }

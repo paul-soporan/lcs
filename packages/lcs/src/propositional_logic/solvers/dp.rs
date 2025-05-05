@@ -8,8 +8,8 @@ use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
+        dimacs::{ClauseSet, IntLiteral},
         evaluate::{Interpretation, TruthValue},
-        normal_forms::Literal,
     },
 };
 
@@ -59,8 +59,8 @@ impl DpSolver {
 impl Solve for DpSolver {
     type Result = DpResult;
 
-    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpResult {
-        let mut engine = DpEngine::new(clauses);
+    fn solve(&self, clause_set: ClauseSet, explanation: &mut impl Explain) -> DpResult {
+        let mut engine = DpEngine::new(clause_set);
         let value = engine.apply_dp(explanation);
 
         DpResult {
@@ -74,13 +74,13 @@ impl Solve for DpSolver {
 #[derive(Debug)]
 struct DpEngine {
     clauses: IndexSet<Clause>,
-    required_literals: HashSet<Literal>,
+    required_literals: HashSet<IntLiteral>,
 }
 
 impl DpEngine {
-    fn new(clauses: IndexSet<Clause>) -> Self {
+    fn new(clause_set: ClauseSet) -> Self {
         Self {
-            clauses,
+            clauses: clause_set.clauses,
             required_literals: HashSet::new(),
         }
     }
@@ -161,6 +161,8 @@ impl DpEngine {
 
         explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {
             for literal in &self.required_literals {
+                let literal = literal.to_literal();
+
                 interpretation
                     .0
                     .insert(literal.0.clone(), TruthValue(literal.1));
@@ -182,6 +184,8 @@ impl DpEngine {
                         "Checking literal {}",
                         literal.to_string().blue().markdown()
                     ));
+
+                    let literal = literal.to_literal();
 
                     let existing = interpretation.0.get(&literal.0);
                     match existing {
@@ -220,7 +224,7 @@ impl DpEngine {
 
 pub(super) fn apply_one_literal_rule<T>(
     clauses: &mut T,
-    required_literals: &mut HashSet<Literal>,
+    required_literals: &mut HashSet<IntLiteral>,
     explanation: &mut impl Explain,
 ) -> bool
 where
@@ -280,7 +284,7 @@ where
 fn find_one_literal(
     clauses: impl IntoIterator<Item = &Clause>,
     explanation: &mut impl Explain,
-) -> Option<Literal> {
+) -> Option<IntLiteral> {
     explanation.with_subexplanation("Looking for a one literal clause", |explanation| {
         for clause in clauses {
             if clause.0.len() == 1 {
@@ -299,7 +303,7 @@ fn find_one_literal(
 
 pub(super) fn apply_pure_literal_rule<T>(
     clauses: &mut T,
-    required_literals: &mut HashSet<Literal>,
+    required_literals: &mut HashSet<IntLiteral>,
     explanation: &mut impl Explain,
 ) -> bool
 where
@@ -340,14 +344,14 @@ where
 fn find_pure_literal(
     clauses: impl IntoIterator<Item = &Clause>,
     explanation: &mut impl Explain,
-) -> Option<Literal> {
+) -> Option<IntLiteral> {
     explanation.with_subexplanation("Looking for a pure literal", |explanation| {
         let mut literals = BTreeMap::new();
 
         for clause in clauses {
             for literal in &clause.0 {
                 let entry = literals
-                    .entry(literal.0.clone())
+                    .entry(literal.abs())
                     .or_insert_with(|| BTreeSet::new());
                 entry.insert(literal);
             }
