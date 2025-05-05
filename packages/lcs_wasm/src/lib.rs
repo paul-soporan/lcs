@@ -1,6 +1,6 @@
 use indexmap::{indexmap, IndexMap, IndexSet};
 use lcs::{
-    explanation::Explanation,
+    explanation::{Explain, Explanation},
     predicate_logic::{
         parser::{parse_formula, Signature},
         prove::{ProofResult, ProofSituation},

@@ -9,7 +9,7 @@ use colored::Colorize;
 use indexmap::{indexmap, indexset};
 use itertools::Itertools;
 use lcs::{
-    explanation::Explanation,
+    explanation::{Explain, Explanation},
     markdown::Markdown,
     predicate_logic::{
         evaluate::{Assignment, Function, Interpretation, Predicate},

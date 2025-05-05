@@ -3,9 +3,7 @@ use std::fmt::Display;
 use colored::Colorize;
 use indexmap::IndexMap;
 
-use crate::{
-    explanation::Explanation, markdown::Markdown, propositional_logic::evaluate::TruthValue,
-};
+use crate::{explanation::Explain, markdown::Markdown, propositional_logic::evaluate::TruthValue};
 
 use super::types::{Formula, Term};
 
@@ -72,7 +70,7 @@ impl Term {
     pub fn evaluate<D: Clone + Display>(
         &self,
         assignment: &Assignment<D>,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> D {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",
@@ -135,7 +133,7 @@ impl Formula {
     pub fn evaluate<D: Clone + Display>(
         &self,
         assignment: &Assignment<D>,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> TruthValue {
         explanation.step(format!(
             "υ<sub>σ<sub>I</sub></sub>({})",

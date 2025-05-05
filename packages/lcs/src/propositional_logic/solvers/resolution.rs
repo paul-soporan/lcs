@@ -5,7 +5,7 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
-    explanation::Explanation, markdown::Markdown, propositional_logic::evaluate::Interpretation,
+    explanation::Explain, markdown::Markdown, propositional_logic::evaluate::Interpretation,
 };
 
 use super::solve::{Clause, Solve, SolverResult};
@@ -29,7 +29,7 @@ impl SolverResult for ResolutionResult {
         self.value = !self.value;
     }
 
-    fn build_interpretation(&self, _: &mut Explanation) -> Option<Interpretation> {
+    fn build_interpretation(&self, _: &mut impl Explain) -> Option<Interpretation> {
         unimplemented!()
     }
 }
@@ -40,7 +40,7 @@ pub struct ResolutionSolver {}
 impl Solve for ResolutionSolver {
     type Result = ResolutionResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> ResolutionResult {
+    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> ResolutionResult {
         let mut engine = ResolutionEngine::new(clauses);
         let value = engine.apply_resolution(explanation);
 
@@ -61,7 +61,7 @@ impl ResolutionEngine {
         Self { clauses }
     }
 
-    fn apply_resolution(&mut self, explanation: &mut Explanation) -> bool {
+    fn apply_resolution(&mut self, explanation: &mut impl Explain) -> bool {
         let result =
             explanation.with_subexplanation("Applying the resolution algorithm", |explanation| {
                 loop {
@@ -115,7 +115,7 @@ impl ResolutionEngine {
 
 pub(super) fn apply_resolution_step(
     clauses: &mut IndexSet<Clause>,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Option<bool> {
     explanation.with_subexplanation("Resolution step", |explanation| {
         match find_new_resolvent(clauses, explanation) {
@@ -138,7 +138,10 @@ pub(super) fn apply_resolution_step(
     })
 }
 
-fn find_new_resolvent(clauses: &IndexSet<Clause>, explanation: &mut Explanation) -> Option<Clause> {
+fn find_new_resolvent(
+    clauses: &IndexSet<Clause>,
+    explanation: &mut impl Explain,
+) -> Option<Clause> {
     explanation.with_subexplanation("Attempting to find a new resolvent", |explanation| {
         for (i, clause1) in clauses.iter().enumerate().sorted_by(|a, b| a.1.cmp(&b.1)) {
             for (j, clause2) in clauses

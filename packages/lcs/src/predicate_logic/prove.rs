@@ -4,7 +4,10 @@ use colored::Colorize;
 use indexmap::{indexset, IndexMap, IndexSet};
 use itertools::Itertools;
 
-use crate::{explanation::Explanation, markdown::Markdown};
+use crate::{
+    explanation::{DiscardedExplanation, Explain},
+    markdown::Markdown,
+};
 
 use super::{
     substitution::Substitution,
@@ -379,7 +382,7 @@ impl Proof {
         format!("\n<pre>{}</pre>", description)
     }
 
-    pub fn explain(&self, explanation: &mut Explanation) {
+    pub fn explain(&self, explanation: &mut impl Explain) {
         explanation.with_subexplanation("Proof situation", |explanation| {
             explanation.with_subexplanation("Knowledge Base", |explanation| {
                 for formula in &self.situation.knowledge_base {
@@ -642,7 +645,7 @@ impl ProofSituation {
                         variable.clone(),
                         Term::Variable(Variable(arbitrary_variable_name.clone())),
                     ),
-                    &mut Explanation::default(),
+                    &mut DiscardedExplanation,
                 );
 
                 let next_proof = ProofSituation {
@@ -760,7 +763,7 @@ impl ProofSituation {
                     for free_variable in free_variables {
                         let next_formula = subformula.with_substitution(
                             &Substitution::single(variable.clone(), Term::Variable(free_variable)),
-                            &mut Explanation::default(),
+                            &mut DiscardedExplanation,
                         );
 
                         if self.knowledge_base.contains(&next_formula) {

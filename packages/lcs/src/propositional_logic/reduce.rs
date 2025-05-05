@@ -1,12 +1,15 @@
 use colored::Colorize;
 
 use crate::{
-    explanation::Explanation,
+    explanation::Explain,
     markdown::Markdown,
     propositional_logic::{simplify::law, types::Proposition},
 };
 
-pub fn reduce_proposition(proposition: &Proposition, explanation: &mut Explanation) -> Proposition {
+pub fn reduce_proposition(
+    proposition: &Proposition,
+    explanation: &mut impl Explain,
+) -> Proposition {
     match proposition {
         Proposition::Tautology => {
             explanation.step(format!(
@@ -90,7 +93,7 @@ pub fn reduce_proposition(proposition: &Proposition, explanation: &mut Explanati
 pub fn reduce_equivalence(
     left: &Proposition,
     right: &Proposition,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Proposition {
     explanation.step(law("(F ⇔ G) ∼ (F ⇒ G) ∧ (G ⇒ F)"));
 
@@ -106,7 +109,7 @@ pub fn reduce_equivalence(
 pub fn reduce_implication(
     left: &Proposition,
     right: &Proposition,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Proposition {
     explanation.step(law("(F ⇒ G) ∼ (¬F ∨ G)"));
 

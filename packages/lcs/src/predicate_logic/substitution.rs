@@ -4,7 +4,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use itertools::Itertools;
 
-use crate::{explanation::Explanation, markdown::Markdown};
+use crate::{explanation::Explain, markdown::Markdown};
 
 use super::types::{Term, Variable};
 
@@ -36,7 +36,7 @@ impl Substitution {
         new_substitution
     }
 
-    pub fn compose(&self, other: &Substitution, explanation: &mut Explanation) -> Substitution {
+    pub fn compose(&self, other: &Substitution, explanation: &mut impl Explain) -> Substitution {
         let mut new_substitution = Substitution {
             name: format!("{}{}", self.name, other.name),
             mapping: IndexMap::new(),

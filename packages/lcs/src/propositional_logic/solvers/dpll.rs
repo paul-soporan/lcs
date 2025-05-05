@@ -4,7 +4,7 @@ use colored::Colorize;
 use indexmap::IndexSet;
 
 use crate::{
-    explanation::Explanation,
+    explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
         evaluate::{Interpretation, TruthValue},
@@ -37,7 +37,7 @@ impl SolverResult for DpllResult {
         self.value = !self.value;
     }
 
-    fn build_interpretation(&self, explanation: &mut Explanation) -> Option<Interpretation> {
+    fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation> {
         if self.satisfiable {
             Some(self.engine.build_satisfying_interpretation(explanation))
         } else {
@@ -52,7 +52,7 @@ pub struct DpllSolver {}
 impl Solve for DpllSolver {
     type Result = DpllResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> DpllResult {
+    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpllResult {
         let mut engine = DpllEngine::new(clauses);
         let value = engine.apply_dpll(explanation);
 
@@ -78,7 +78,7 @@ impl DpllEngine {
         }
     }
 
-    fn apply_split(&mut self, explanation: &mut Explanation) -> bool {
+    fn apply_split(&mut self, explanation: &mut impl Explain) -> bool {
         let literal = self.clauses[0].0.first().unwrap().clone();
 
         explanation.with_subexplanation(
@@ -135,7 +135,7 @@ impl DpllEngine {
         )
     }
 
-    fn apply_dpll(&mut self, explanation: &mut Explanation) -> bool {
+    fn apply_dpll(&mut self, explanation: &mut impl Explain) -> bool {
         let result =
             explanation.with_subexplanation("Applying the DPLL algorithm", |explanation| loop {
                 let explanation = explanation.subexplanation("DPLL step");
@@ -199,7 +199,10 @@ impl DpllEngine {
         result
     }
 
-    pub fn build_satisfying_interpretation(&self, explanation: &mut Explanation) -> Interpretation {
+    pub fn build_satisfying_interpretation(
+        &self,
+        explanation: &mut impl Explain,
+    ) -> Interpretation {
         let mut interpretation = Interpretation::default();
 
         explanation.with_subexplanation("Building a satisfying truth valuation", |explanation| {

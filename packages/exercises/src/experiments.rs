@@ -1,7 +1,7 @@
 use std::{fs, time::Instant};
 
 use lcs::{
-    explanation::Explanation,
+    explanation::DiscardedExplanation,
     propositional_logic::{
         dimacs::DimacsCnf,
         solvers::{
@@ -17,7 +17,7 @@ pub fn run() {
 
     let instant = Instant::now();
 
-    let result = DpllSolver::check_cnf_satisfiability(dimacs_cnf.cnf, &mut Explanation::default());
+    let result = DpllSolver::check_cnf_satisfiability(dimacs_cnf.cnf, &mut DiscardedExplanation);
 
     let elapsed = instant.elapsed();
 

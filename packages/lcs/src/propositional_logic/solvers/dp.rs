@@ -5,7 +5,7 @@ use indexmap::IndexSet;
 use replace_with::replace_with_or_abort;
 
 use crate::{
-    explanation::Explanation,
+    explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
         evaluate::{Interpretation, TruthValue},
@@ -38,7 +38,7 @@ impl SolverResult for DpResult {
         self.value = !self.value;
     }
 
-    fn build_interpretation(&self, explanation: &mut Explanation) -> Option<Interpretation> {
+    fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation> {
         if self.satisfiable {
             Some(self.engine.build_satisfying_interpretation(explanation))
         } else {
@@ -53,7 +53,7 @@ pub struct DpSolver {}
 impl Solve for DpSolver {
     type Result = DpResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> DpResult {
+    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpResult {
         let mut engine = DpEngine::new(clauses);
         let value = engine.apply_dp(explanation);
 
@@ -79,7 +79,7 @@ impl DpEngine {
         }
     }
 
-    fn apply_dp(&mut self, explanation: &mut Explanation) -> bool {
+    fn apply_dp(&mut self, explanation: &mut impl Explain) -> bool {
         let result =
             explanation.with_subexplanation("Applying the DP algorithm", |explanation| loop {
                 let explanation = explanation.subexplanation("DP step");
@@ -146,7 +146,10 @@ impl DpEngine {
         result
     }
 
-    pub fn build_satisfying_interpretation(&self, explanation: &mut Explanation) -> Interpretation {
+    pub fn build_satisfying_interpretation(
+        &self,
+        explanation: &mut impl Explain,
+    ) -> Interpretation {
         let clauses = BTreeSet::from_iter(self.clauses.clone());
         let mut interpretation = Interpretation::default();
 
@@ -212,7 +215,7 @@ impl DpEngine {
 pub(super) fn apply_one_literal_rule(
     clauses: &mut IndexSet<Clause>,
     required_literals: &mut HashSet<Literal>,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> bool {
     explanation.with_subexplanation("Trying to apply the one literal rule", |explanation| {
         match find_one_literal(clauses, explanation) {
@@ -264,7 +267,7 @@ pub(super) fn apply_one_literal_rule(
     })
 }
 
-fn find_one_literal(clauses: &IndexSet<Clause>, explanation: &mut Explanation) -> Option<Literal> {
+fn find_one_literal(clauses: &IndexSet<Clause>, explanation: &mut impl Explain) -> Option<Literal> {
     explanation.with_subexplanation("Looking for a one literal clause", |explanation| {
         for clause in clauses {
             if clause.0.len() == 1 {
@@ -284,7 +287,7 @@ fn find_one_literal(clauses: &IndexSet<Clause>, explanation: &mut Explanation) -
 pub(super) fn apply_pure_literal_rule(
     clauses: &mut IndexSet<Clause>,
     required_literals: &mut HashSet<Literal>,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> bool {
     explanation.with_subexplanation("Trying to apply the pure literal rule", |explanation| {
         match find_pure_literal(clauses, explanation) {
@@ -317,7 +320,10 @@ pub(super) fn apply_pure_literal_rule(
     })
 }
 
-fn find_pure_literal(clauses: &IndexSet<Clause>, explanation: &mut Explanation) -> Option<Literal> {
+fn find_pure_literal(
+    clauses: &IndexSet<Clause>,
+    explanation: &mut impl Explain,
+) -> Option<Literal> {
     explanation.with_subexplanation("Looking for a pure literal", |explanation| {
         let mut literals = BTreeMap::new();
 

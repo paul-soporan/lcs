@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, fmt::Display};
 
 use crate::{
-    explanation::Explanation,
+    explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
         evaluate::Interpretation,
@@ -58,17 +58,17 @@ pub trait SolverResult {
 
     fn flip_value(&mut self);
 
-    fn build_interpretation(&self, explanation: &mut Explanation) -> Option<Interpretation>;
+    fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation>;
 }
 
 pub trait Solve {
     type Result: SolverResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut Explanation) -> Self::Result;
+    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> Self::Result;
 
     fn check_cnf_satisfiability(
         cnf: ConjunctiveNormalForm,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self::Result {
         let clauses = cnf.0.into_iter().map(Clause).collect();
 
@@ -77,7 +77,7 @@ pub trait Solve {
 
     fn check_satisfiability(
         proposition: impl Into<Proposition>,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self::Result {
         let proposition = proposition.into();
 
@@ -97,7 +97,7 @@ pub trait Solve {
 
     fn check_validity(
         proposition: impl Into<Proposition>,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self::Result {
         let proposition = proposition.into();
 
@@ -137,7 +137,7 @@ pub trait Solve {
 
     fn check_logical_consequence(
         consequence: LogicalConsequence,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self::Result {
         let mut propositions = consequence.premises.clone();
         propositions.push(consequence.conclusion.negated());

@@ -8,7 +8,7 @@ use derive_more::derive::Display;
 use itertools::Itertools;
 use termtree::Tree;
 
-use crate::{explanation::Explanation, markdown::Markdown};
+use crate::{explanation::Explain, markdown::Markdown};
 
 use super::{parser::ExpressionSymbols, substitution::Substitution};
 
@@ -126,7 +126,7 @@ impl Term {
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
@@ -162,7 +162,7 @@ impl Term {
     pub fn with_substitution(
         &self,
         substitution: &Substitution,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Term {
         let mut cloned = self.clone();
         cloned.apply_substitution(substitution, explanation);
@@ -413,7 +413,7 @@ impl Formula {
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) {
         explanation.step(format!(
             "({})<sub>{}</sub>",
@@ -496,7 +496,7 @@ impl Formula {
     pub fn with_substitution(
         &self,
         substitution: &Substitution,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Formula {
         let mut cloned = self.clone();
         cloned.apply_substitution(substitution, explanation);
@@ -507,7 +507,7 @@ impl Formula {
         &self,
         term: &Term,
         variable: &Variable,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> bool {
         explanation.step(format!(
             "Checking if {} is substitutable for {} in {}",
@@ -941,7 +941,7 @@ impl Expression {
     pub fn apply_substitution(
         &mut self,
         substitution: &Substitution,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) {
         match self {
             Expression::Term(term) => term.apply_substitution(substitution, explanation),

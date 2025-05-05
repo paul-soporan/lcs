@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use colored::Colorize;
 use indexmap::{indexmap, indexset};
 use lcs::{
-    explanation::Explanation,
+    explanation::{Explain, Explanation},
     markdown::Markdown,
     predicate_logic::{
         parser::Signature,

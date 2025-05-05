@@ -4,6 +4,34 @@ use std::mem;
 use enum_as_inner::EnumAsInner;
 use termtree::Tree;
 
+pub trait Explain {
+    fn step(&mut self, step: impl Into<String>);
+    fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self;
+    fn merge_subexplanations(&mut self, function: impl Fn(&[String]) -> String);
+
+    fn with_subexplanation<T>(
+        &mut self,
+        description: impl Into<String>,
+        function: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let explanation = self.subexplanation(description);
+        function(explanation)
+    }
+}
+
+#[derive(Debug)]
+pub struct DiscardedExplanation;
+
+impl Explain for DiscardedExplanation {
+    fn step(&mut self, _: impl Into<String>) {}
+
+    fn subexplanation(&mut self, _: impl Into<String>) -> &mut Self {
+        self
+    }
+
+    fn merge_subexplanations(&mut self, _: impl Fn(&[String]) -> String) {}
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, EnumAsInner)]
 enum ExplanationComponent {
     Step(String),
@@ -16,15 +44,8 @@ pub struct Explanation {
     components: Vec<ExplanationComponent>,
 }
 
-impl Explanation {
-    pub fn new(description: impl Into<String>) -> Self {
-        Self {
-            description: description.into(),
-            components: Vec::new(),
-        }
-    }
-
-    pub fn step(&mut self, step: impl Into<String>) {
+impl Explain for Explanation {
+    fn step(&mut self, step: impl Into<String>) {
         let step = ExplanationComponent::Step(step.into());
 
         if self.components.last() != Some(&step) {
@@ -32,7 +53,7 @@ impl Explanation {
         }
     }
 
-    pub fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self {
+    fn subexplanation(&mut self, description: impl Into<String>) -> &mut Self {
         let explanation = Explanation::new(description);
         self.components
             .push(ExplanationComponent::Explanation(explanation));
@@ -44,16 +65,7 @@ impl Explanation {
             .unwrap()
     }
 
-    pub fn with_subexplanation<T>(
-        &mut self,
-        description: impl Into<String>,
-        function: impl FnOnce(&mut Explanation) -> T,
-    ) -> T {
-        let explanation = self.subexplanation(description);
-        function(explanation)
-    }
-
-    pub fn merge_subexplanations(&mut self, function: impl Fn(&[String]) -> String) {
+    fn merge_subexplanations(&mut self, function: impl Fn(&[String]) -> String) {
         let mut subexplanations = vec![];
 
         for component in mem::take(&mut self.components) {
@@ -94,6 +106,15 @@ impl Explanation {
             );
 
             self.step(merged);
+        }
+    }
+}
+
+impl Explanation {
+    pub fn new(description: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+            components: Vec::new(),
         }
     }
 

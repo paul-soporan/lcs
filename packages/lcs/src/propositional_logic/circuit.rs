@@ -7,7 +7,7 @@ use colored::Colorize;
 use indexmap::IndexSet;
 
 use crate::{
-    explanation::Explanation,
+    explanation::{DiscardedExplanation, Explain},
     markdown::Markdown,
     propositional_logic::normal_forms::{ConjunctiveNormalForm, DisjunctiveNormalForm, Literal},
 };
@@ -69,7 +69,7 @@ impl From<Gate> for Component {
 
 pub fn into_nand_only_component(
     component: impl Into<Component>,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Component {
     let component = component.into();
 
@@ -182,7 +182,7 @@ impl Circuit {
             components: self
                 .components
                 .into_iter()
-                .map(|component| into_nand_only_component(component, &mut Explanation::default()))
+                .map(|component| into_nand_only_component(component, &mut DiscardedExplanation))
                 .collect(),
         }
     }

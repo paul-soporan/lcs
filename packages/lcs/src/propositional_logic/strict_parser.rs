@@ -9,7 +9,10 @@ use winnow::{
     PResult, Parser, Stateful,
 };
 
-use crate::{explanation::Explanation, markdown::Markdown};
+use crate::{
+    explanation::{Explain, Explanation},
+    markdown::Markdown,
+};
 
 use super::types::{Proposition, PropositionalVariable};
 

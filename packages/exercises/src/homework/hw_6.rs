@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use colored::Colorize;
 use lcs::{
-    explanation::Explanation,
+    explanation::{Explain, Explanation},
     markdown::Markdown,
     propositional_logic::{
         normal_forms::ConjunctiveNormalForm,

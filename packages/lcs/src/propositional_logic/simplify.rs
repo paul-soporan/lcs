@@ -3,7 +3,9 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
-    explanation::Explanation, markdown::Markdown, propositional_logic::types::Proposition,
+    explanation::{DiscardedExplanation, Explain},
+    markdown::Markdown,
+    propositional_logic::types::Proposition,
 };
 
 pub fn law(equivalence: &str) -> String {
@@ -12,7 +14,7 @@ pub fn law(equivalence: &str) -> String {
 
 pub fn simplify_proposition(
     proposition: &Proposition,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Proposition {
     match proposition {
         Proposition::Tautology => {
@@ -98,7 +100,7 @@ pub fn simplify_proposition(
 
 pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
     propositions: &[T],
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
     simplify_components: bool,
 ) -> Option<Vec<T>> {
     let mut simplified = IndexSet::new();
@@ -147,7 +149,7 @@ pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
 
                 if simplified.contains(&simplify_proposition(
                     &p.negated(),
-                    &mut Explanation::default(),
+                    &mut DiscardedExplanation,
                 )) {
                     explanation.step(law("F ∧ ¬F ∼ ⊥"));
                     return None;
@@ -165,7 +167,7 @@ pub fn simplify_conjunction<T: Clone + From<Proposition> + Into<Proposition>>(
 
 pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
     propositions: &[T],
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
     simplify_components: bool,
 ) -> Option<Vec<T>> {
     let mut simplified = IndexSet::new();
@@ -214,7 +216,7 @@ pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
 
                 if simplified.contains(&simplify_proposition(
                     &p.negated(),
-                    &mut Explanation::default(),
+                    &mut DiscardedExplanation,
                 )) {
                     explanation.step(law("F ∨ ¬F ∼ ⊤"));
                     return None;
@@ -232,7 +234,7 @@ pub fn simplify_disjunction<T: Clone + From<Proposition> + Into<Proposition>>(
 
 pub fn simplify_negation(
     negated_proposition: &Proposition,
-    explanation: &mut Explanation,
+    explanation: &mut impl Explain,
 ) -> Proposition {
     match simplify_proposition(
         negated_proposition,

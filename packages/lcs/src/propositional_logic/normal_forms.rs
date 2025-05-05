@@ -5,7 +5,7 @@ use itertools::Itertools;
 use maplit::btreeset;
 
 use crate::{
-    explanation::Explanation,
+    explanation::{DiscardedExplanation, Explain},
     markdown::Markdown,
     propositional_logic::{
         reduce::reduce_proposition,
@@ -59,7 +59,7 @@ impl From<Literal> for NegationNormalForm {
 }
 
 impl NegationNormalForm {
-    pub fn from_proposition(proposition: Proposition, explanation: &mut Explanation) -> Self {
+    pub fn from_proposition(proposition: Proposition, explanation: &mut impl Explain) -> Self {
         explanation.with_subexplanation(
             format!(
                 "Computing NNF for proposition: {}",
@@ -248,7 +248,7 @@ impl NegationNormalForm {
 
 impl From<Proposition> for NegationNormalForm {
     fn from(value: Proposition) -> Self {
-        NegationNormalForm::from_proposition(value, &mut Explanation::default())
+        NegationNormalForm::from_proposition(value, &mut DiscardedExplanation)
     }
 }
 
@@ -278,7 +278,7 @@ pub struct DisjunctiveNormalForm(pub BTreeSet<BTreeSet<Literal>>);
 impl DisjunctiveNormalForm {
     pub fn from_negation_normal_form(
         nnf: NegationNormalForm,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self {
         explanation.with_subexplanation(
             format!(
@@ -440,7 +440,7 @@ impl DisjunctiveNormalForm {
 
 impl From<NegationNormalForm> for DisjunctiveNormalForm {
     fn from(value: NegationNormalForm) -> Self {
-        DisjunctiveNormalForm::from_negation_normal_form(value, &mut Explanation::default())
+        DisjunctiveNormalForm::from_negation_normal_form(value, &mut DiscardedExplanation)
     }
 }
 
@@ -475,7 +475,7 @@ pub struct ConjunctiveNormalForm(pub BTreeSet<BTreeSet<Literal>>);
 impl ConjunctiveNormalForm {
     pub fn from_negation_normal_form(
         nnf: NegationNormalForm,
-        explanation: &mut Explanation,
+        explanation: &mut impl Explain,
     ) -> Self {
         explanation.with_subexplanation(
             format!(
@@ -634,7 +634,7 @@ impl ConjunctiveNormalForm {
 
 impl From<NegationNormalForm> for ConjunctiveNormalForm {
     fn from(value: NegationNormalForm) -> Self {
-        ConjunctiveNormalForm::from_negation_normal_form(value, &mut Explanation::default())
+        ConjunctiveNormalForm::from_negation_normal_form(value, &mut DiscardedExplanation)
     }
 }
 
