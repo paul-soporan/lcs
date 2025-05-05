@@ -50,10 +50,16 @@ impl SolverResult for DpResult {
 #[derive(Debug)]
 pub struct DpSolver {}
 
+impl DpSolver {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl Solve for DpSolver {
     type Result = DpResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpResult {
+    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpResult {
         let mut engine = DpEngine::new(clauses);
         let value = engine.apply_dp(explanation);
 

@@ -53,14 +53,31 @@ impl SolverResult for DpllResult {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum DpllBranchingHeuristic {
+    First,
+    Random,
+    Maxo,
+}
+
 #[derive(Debug)]
-pub struct DpllSolver {}
+pub struct DpllSolver {
+    branching_heuristic: DpllBranchingHeuristic,
+}
+
+impl DpllSolver {
+    pub fn new(branching_heuristic: DpllBranchingHeuristic) -> Self {
+        Self {
+            branching_heuristic,
+        }
+    }
+}
 
 impl Solve for DpllSolver {
     type Result = DpllResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpllResult {
-        let mut engine = DpllEngine::new(Vec::from_iter(clauses));
+    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpllResult {
+        let mut engine = DpllEngine::new(Vec::from_iter(clauses), self.branching_heuristic);
         let value = engine.apply_dpll(explanation);
 
         DpllResult {
@@ -75,21 +92,35 @@ impl Solve for DpllSolver {
 struct DpllEngine {
     // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<Clause>,
+    branching_heuristic: DpllBranchingHeuristic,
     required_literals: HashSet<Literal>,
     split_count: usize,
 }
 
 impl DpllEngine {
-    fn new(clauses: Vec<Clause>) -> Self {
+    fn new(clauses: Vec<Clause>, branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
             clauses,
+            branching_heuristic,
             required_literals: HashSet::new(),
             split_count: 0,
         }
     }
 
+    fn choose_literal(&self) -> Option<Literal> {
+        match self.branching_heuristic {
+            DpllBranchingHeuristic::First => self.clauses[0].0.first().cloned(),
+            DpllBranchingHeuristic::Random => {
+                unimplemented!()
+            }
+            DpllBranchingHeuristic::Maxo => {
+                unimplemented!()
+            }
+        }
+    }
+
     fn apply_split(&mut self, explanation: &mut impl Explain) -> bool {
-        let literal = self.clauses[0].0.first().unwrap().clone();
+        let literal = self.choose_literal().unwrap();
 
         self.split_count += 1;
 

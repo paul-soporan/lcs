@@ -65,9 +65,10 @@ pub trait SolverResult {
 pub trait Solve {
     type Result: SolverResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> Self::Result;
+    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> Self::Result;
 
     fn check_cnf_satisfiability(
+        &self,
         cnf: ConjunctiveNormalForm,
         explanation: &mut impl Explain,
     ) -> Self::Result {
@@ -77,10 +78,11 @@ pub trait Solve {
             .map(|clause| Clause(OrderSet::from_iter(clause)))
             .collect();
 
-        Self::solve(clauses, explanation)
+        self.solve(clauses, explanation)
     }
 
     fn check_satisfiability(
+        &self,
         proposition: impl Into<Proposition>,
         explanation: &mut impl Explain,
     ) -> Self::Result {
@@ -95,12 +97,13 @@ pub trait Solve {
                 let nnf = NegationNormalForm::from_proposition(proposition, explanation);
                 let cnf = ConjunctiveNormalForm::from_negation_normal_form(nnf, explanation);
 
-                Self::check_cnf_satisfiability(cnf, explanation)
+                self.check_cnf_satisfiability(cnf, explanation)
             },
         )
     }
 
     fn check_validity(
+        &self,
         proposition: impl Into<Proposition>,
         explanation: &mut impl Explain,
     ) -> Self::Result {
@@ -115,7 +118,7 @@ pub trait Solve {
                 let negated_proposition = proposition.negated();
 
                 let mut result =
-                    Self::check_satisfiability(negated_proposition.clone(), explanation);
+                    self.check_satisfiability(negated_proposition.clone(), explanation);
 
                 explanation.step(format!(
                     "{} is {}, therefore {} is {}",
@@ -141,6 +144,7 @@ pub trait Solve {
     }
 
     fn check_logical_consequence(
+        &self,
         consequence: LogicalConsequence,
         explanation: &mut impl Explain,
     ) -> Self::Result {
@@ -155,7 +159,7 @@ pub trait Solve {
                 consequence.to_string().blue().markdown()
             ),
             |explanation| {
-                let mut result = Self::check_satisfiability(proposition.clone(), explanation);
+                let mut result = self.check_satisfiability(proposition.clone(), explanation);
 
                 explanation.step(format!(
                     "{} is {}, therefore {} is {}",

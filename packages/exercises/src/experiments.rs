@@ -5,7 +5,7 @@ use lcs::{
     propositional_logic::{
         dimacs::DimacsCnf,
         solvers::{
-            dpll::DpllSolver,
+            dpll::{DpllBranchingHeuristic, DpllSolver},
             solve::{Solve, SolverResult},
         },
     },
@@ -17,7 +17,8 @@ pub fn run() {
 
     let instant = Instant::now();
 
-    let result = DpllSolver::check_cnf_satisfiability(dimacs_cnf.cnf, &mut DiscardedExplanation);
+    let solver = DpllSolver::new(DpllBranchingHeuristic::First);
+    let result = solver.check_cnf_satisfiability(dimacs_cnf.cnf, &mut DiscardedExplanation);
 
     let elapsed = instant.elapsed();
 

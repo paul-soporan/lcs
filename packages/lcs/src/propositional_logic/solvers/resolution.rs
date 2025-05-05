@@ -35,10 +35,16 @@ impl SolverResult for ResolutionResult {
 #[derive(Debug)]
 pub struct ResolutionSolver {}
 
+impl ResolutionSolver {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 impl Solve for ResolutionSolver {
     type Result = ResolutionResult;
 
-    fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> ResolutionResult {
+    fn solve(&self, clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> ResolutionResult {
         let mut engine = ResolutionEngine::new(clauses);
         let value = engine.apply_resolution(explanation);
 
