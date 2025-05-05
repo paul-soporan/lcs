@@ -130,16 +130,17 @@ impl DpllEngine {
                 let literals = self.required_literals.clone();
 
                 let positive_literal_clause = Clause(OrderSet::from([literal]));
-                let positive_literal_explanation = format!(
-                    "Branch with clause {}",
-                    positive_literal_clause.to_string().green().markdown()
-                );
+                let positive_literal_clause_string = positive_literal_clause.to_string();
 
                 self.clauses.push(positive_literal_clause);
                 self.required_literals.insert(literal);
 
-                let positive_literal_result =
-                    self.apply_dpll(explanation.subexplanation(|| positive_literal_explanation));
+                let positive_literal_result = self.apply_dpll(explanation.subexplanation(|| {
+                    format!(
+                        "Branch with clause {}",
+                        positive_literal_clause_string.green().markdown()
+                    )
+                }));
                 if positive_literal_result {
                     explanation.step(|| {
                         format!(
@@ -151,10 +152,7 @@ impl DpllEngine {
                 }
 
                 let negative_literal_clause = Clause(OrderSet::from([literal.complement()]));
-                let negative_literal_explanation = format!(
-                    "Branch with clause {}",
-                    negative_literal_clause.to_string().red().markdown()
-                );
+                let negative_literal_clause_string = negative_literal_clause.to_string();
 
                 self.clauses = clauses;
                 self.required_literals = literals;
@@ -162,8 +160,12 @@ impl DpllEngine {
                 self.clauses.push(negative_literal_clause);
                 self.required_literals.insert(literal.complement());
 
-                let result =
-                    self.apply_dpll(explanation.subexplanation(|| negative_literal_explanation));
+                let result = self.apply_dpll(explanation.subexplanation(|| {
+                    format!(
+                        "Branch with clause {}",
+                        negative_literal_clause_string.red().markdown()
+                    )
+                }));
 
                 explanation.step(|| {
                     format!(
