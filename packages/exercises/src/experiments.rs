@@ -25,5 +25,6 @@ pub fn run() {
         "DPLL result: {}",
         if result.value() { "SAT" } else { "UNSAT" }
     );
+    println!("Split count: {}", result.split_count());
     println!("Elapsed time: {:?}", elapsed);
 }

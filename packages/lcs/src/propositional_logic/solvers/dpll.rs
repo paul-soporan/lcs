@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 
 use colored::Colorize;
 use indexmap::IndexSet;
@@ -23,6 +23,12 @@ pub struct DpllResult {
     value: bool,
     satisfiable: bool,
     engine: DpllEngine,
+}
+
+impl DpllResult {
+    pub fn split_count(&self) -> usize {
+        self.engine.split_count
+    }
 }
 
 impl SolverResult for DpllResult {
@@ -54,7 +60,7 @@ impl Solve for DpllSolver {
     type Result = DpllResult;
 
     fn solve(clauses: IndexSet<Clause>, explanation: &mut impl Explain) -> DpllResult {
-        let mut engine = DpllEngine::new(clauses);
+        let mut engine = DpllEngine::new(Vec::from_iter(clauses));
         let value = engine.apply_dpll(explanation);
 
         DpllResult {
@@ -67,20 +73,25 @@ impl Solve for DpllSolver {
 
 #[derive(Debug)]
 struct DpllEngine {
-    clauses: IndexSet<Clause>,
+    // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
+    clauses: Vec<Clause>,
     required_literals: HashSet<Literal>,
+    split_count: usize,
 }
 
 impl DpllEngine {
-    fn new(clauses: IndexSet<Clause>) -> Self {
+    fn new(clauses: Vec<Clause>) -> Self {
         Self {
             clauses,
             required_literals: HashSet::new(),
+            split_count: 0,
         }
     }
 
     fn apply_split(&mut self, explanation: &mut impl Explain) -> bool {
         let literal = self.clauses[0].0.first().unwrap().clone();
+
+        self.split_count += 1;
 
         explanation.with_subexplanation(
             format!("Splitting on {}", literal.to_string().green().markdown()),
@@ -94,7 +105,7 @@ impl DpllEngine {
                     positive_literal_clause.to_string().green().markdown()
                 );
 
-                self.clauses.insert(positive_literal_clause);
+                self.clauses.push(positive_literal_clause);
                 self.required_literals.insert(literal.clone());
 
                 let positive_literal_result =
@@ -116,7 +127,7 @@ impl DpllEngine {
                 self.clauses = clauses;
                 self.required_literals = literals;
 
-                self.clauses.insert(negative_literal_clause);
+                self.clauses.push(negative_literal_clause);
                 self.required_literals.insert(literal.complement());
 
                 let result =
