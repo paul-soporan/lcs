@@ -1,10 +1,16 @@
-use std::{collections::HashSet, fmt::Display, num::NonZeroI32, str::FromStr};
+use std::{
+    collections::HashSet,
+    fmt::Display,
+    hash::{Hash, Hasher},
+    num::NonZeroI32,
+    str::FromStr,
+};
 
 use indexmap::IndexSet;
 
 use super::{normal_forms::Literal, solvers::solve::Clause, types::PropositionalVariable};
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IntLiteral(NonZeroI32);
 
 impl IntLiteral {
@@ -32,6 +38,14 @@ impl IntLiteral {
         Literal::from(*self)
     }
 }
+
+impl Hash for IntLiteral {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        hasher.write_i32(self.0.get())
+    }
+}
+
+impl nohash_hasher::IsEnabled for IntLiteral {}
 
 impl Display for IntLiteral {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

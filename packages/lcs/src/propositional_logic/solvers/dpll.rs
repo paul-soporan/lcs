@@ -129,7 +129,7 @@ impl DpllEngine {
                 let clauses = self.clauses.clone();
                 let literals = self.required_literals.clone();
 
-                let positive_literal_clause = Clause(OrderSet::from([literal]));
+                let positive_literal_clause = Clause(OrderSet::from_iter([literal]));
                 let positive_literal_clause_string = positive_literal_clause.to_string();
 
                 self.clauses.push(positive_literal_clause);
@@ -151,7 +151,7 @@ impl DpllEngine {
                     return true;
                 }
 
-                let negative_literal_clause = Clause(OrderSet::from([literal.complement()]));
+                let negative_literal_clause = Clause(OrderSet::from_iter([literal.complement()]));
                 let negative_literal_clause_string = negative_literal_clause.to_string();
 
                 self.clauses = clauses;

@@ -13,10 +13,11 @@ use crate::{
 use colored::Colorize;
 use indexmap::IndexSet;
 use itertools::Itertools;
+use nohash_hasher::BuildNoHashHasher;
 use ordermap::OrderSet;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Clause(pub OrderSet<IntLiteral>);
+pub struct Clause(pub OrderSet<IntLiteral, BuildNoHashHasher<IntLiteral>>);
 
 impl PartialOrd for Clause {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
