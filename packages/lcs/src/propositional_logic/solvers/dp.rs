@@ -316,7 +316,7 @@ fn find_one_literal(
                             clause.to_string().green().markdown()
                         )
                     });
-                    return Some(clause.0.first().copied().unwrap());
+                    return Some(clause.0.iter().next().copied().unwrap());
                 }
             }
 

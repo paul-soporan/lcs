@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use colored::Colorize;
-use ordermap::OrderSet;
+use nohash_hasher::IntSet;
 
 use crate::{
     explanation::Explain,
@@ -108,7 +108,7 @@ impl DpllEngine {
 
     fn choose_literal(&self) -> Option<IntLiteral> {
         match self.branching_heuristic {
-            DpllBranchingHeuristic::First => self.clauses[0].0.first().copied(),
+            DpllBranchingHeuristic::First => self.clauses[0].0.iter().next().copied(),
             DpllBranchingHeuristic::Random => {
                 unimplemented!()
             }
@@ -129,7 +129,7 @@ impl DpllEngine {
                 let clauses = self.clauses.clone();
                 let literals = self.required_literals.clone();
 
-                let positive_literal_clause = Clause(OrderSet::from_iter([literal]));
+                let positive_literal_clause = Clause(IntSet::from_iter([literal]));
                 let positive_literal_clause_string = positive_literal_clause.to_string();
 
                 self.clauses.push(positive_literal_clause);
@@ -151,7 +151,7 @@ impl DpllEngine {
                     return true;
                 }
 
-                let negative_literal_clause = Clause(OrderSet::from_iter([literal.complement()]));
+                let negative_literal_clause = Clause(IntSet::from_iter([literal.complement()]));
                 let negative_literal_clause_string = negative_literal_clause.to_string();
 
                 self.clauses = clauses;

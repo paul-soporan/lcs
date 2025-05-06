@@ -1,4 +1,7 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    hash::{Hash, Hasher},
+};
 
 use crate::{
     explanation::Explain,
@@ -13,11 +16,12 @@ use crate::{
 use colored::Colorize;
 use indexmap::IndexSet;
 use itertools::Itertools;
-use nohash_hasher::BuildNoHashHasher;
-use ordermap::OrderSet;
+use nohash_hasher::IntSet;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Clause(pub OrderSet<IntLiteral, BuildNoHashHasher<IntLiteral>>);
+// IntSet is a HashSet that uses the NoHashHasher.
+// Therefore, iteration order is deterministic.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Clause(pub IntSet<IntLiteral>);
 
 impl PartialOrd for Clause {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -26,7 +30,7 @@ impl PartialOrd for Clause {
         } else if self.0.len() > other.0.len() {
             Some(std::cmp::Ordering::Greater)
         } else {
-            return self.0.partial_cmp(&other.0);
+            return self.0.iter().partial_cmp(&other.0);
         }
     }
 }
@@ -38,7 +42,15 @@ impl Ord for Clause {
         } else if self.0.len() > other.0.len() {
             std::cmp::Ordering::Greater
         } else {
-            return self.0.cmp(&other.0);
+            return self.0.iter().cmp(&other.0);
+        }
+    }
+}
+
+impl Hash for Clause {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        for literal in &self.0 {
+            literal.hash(hasher);
         }
     }
 }
