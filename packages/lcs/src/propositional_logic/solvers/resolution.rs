@@ -5,10 +5,13 @@ use itertools::Itertools;
 use crate::{
     explanation::Explain,
     markdown::Markdown,
-    propositional_logic::{dimacs::ClauseSet, evaluate::Interpretation},
+    propositional_logic::{
+        dimacs::{Clause, ClauseSet},
+        evaluate::Interpretation,
+    },
 };
 
-use super::solve::{Clause, Solve, SolverResult};
+use super::solve::{Solve, SolverResult};
 
 #[derive(Debug)]
 pub struct ResolutionResult {

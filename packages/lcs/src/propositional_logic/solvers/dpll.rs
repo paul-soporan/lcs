@@ -7,14 +7,14 @@ use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
-        dimacs::{ClauseSet, IntLiteral},
+        dimacs::{Clause, ClauseSet, IntLiteral},
         evaluate::{Interpretation, TruthValue},
     },
 };
 
 use super::{
     dp::{apply_one_literal_rule, apply_pure_literal_rule},
-    solve::{Clause, Solve, SolverResult},
+    solve::{Solve, SolverResult},
 };
 
 #[derive(Debug)]

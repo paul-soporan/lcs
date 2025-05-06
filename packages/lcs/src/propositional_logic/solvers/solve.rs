@@ -1,13 +1,8 @@
-use std::{
-    fmt::Display,
-    hash::{Hash, Hasher},
-};
-
 use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
-        dimacs::{ClauseSet, IntLiteral},
+        dimacs::{Clause, ClauseSet, IntLiteral},
         evaluate::Interpretation,
         normal_forms::{ConjunctiveNormalForm, NegationNormalForm},
         types::{LogicalConsequence, Proposition},
@@ -15,53 +10,6 @@ use crate::{
 };
 use colored::Colorize;
 use indexmap::IndexSet;
-use itertools::Itertools;
-use nohash_hasher::IntSet;
-
-// IntSet is a HashSet that uses the NoHashHasher.
-// Therefore, iteration order is deterministic.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Clause(pub IntSet<IntLiteral>);
-
-impl PartialOrd for Clause {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.0.len() < other.0.len() {
-            Some(std::cmp::Ordering::Less)
-        } else if self.0.len() > other.0.len() {
-            Some(std::cmp::Ordering::Greater)
-        } else {
-            return self.0.iter().partial_cmp(&other.0);
-        }
-    }
-}
-
-impl Ord for Clause {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if self.0.len() < other.0.len() {
-            std::cmp::Ordering::Less
-        } else if self.0.len() > other.0.len() {
-            std::cmp::Ordering::Greater
-        } else {
-            return self.0.iter().cmp(&other.0);
-        }
-    }
-}
-
-impl Hash for Clause {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        for literal in &self.0 {
-            literal.hash(hasher);
-        }
-    }
-}
-
-impl Display for Clause {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let literals = self.0.iter().map(|literal| literal.to_string()).join(", ");
-
-        write!(f, "{{{}}}", literals)
-    }
-}
 
 pub trait SolverResult {
     fn value(&self) -> bool;

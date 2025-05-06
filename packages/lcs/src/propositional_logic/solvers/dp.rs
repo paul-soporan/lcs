@@ -8,14 +8,14 @@ use crate::{
     explanation::Explain,
     markdown::Markdown,
     propositional_logic::{
-        dimacs::{ClauseSet, IntLiteral},
+        dimacs::{Clause, ClauseSet, IntLiteral},
         evaluate::{Interpretation, TruthValue},
     },
 };
 
 use super::{
     resolution::apply_resolution_step,
-    solve::{Clause, Solve, SolverResult},
+    solve::{Solve, SolverResult},
 };
 
 #[derive(Debug)]
