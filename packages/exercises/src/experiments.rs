@@ -17,7 +17,7 @@ pub fn run() {
 
     let instant = Instant::now();
 
-    let solver = DpllSolver::new(DpllBranchingHeuristic::First);
+    let solver = DpllSolver::new(DpllBranchingHeuristic::SelectiveMaxUnitPropagations);
     let result = solver.check_clause_set_satisfiability(clause_set, &mut DiscardedExplanation);
 
     let elapsed = instant.elapsed();

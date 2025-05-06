@@ -5,7 +5,7 @@ use nohash_hasher::IntSet;
 use rand::Rng;
 
 use crate::{
-    explanation::Explain,
+    explanation::{DiscardedExplanation, Explain},
     markdown::Markdown,
     propositional_logic::{
         dimacs::{Clause, ClauseSet, IntLiteral},
@@ -62,6 +62,8 @@ pub enum DpllBranchingHeuristic {
     MaxOccurrencesAndComplementMaxOccurrencesMinSize,
     JeroslawWang,
     MaxUnitPropagations,
+    GreedyMaxUnitPropagations,
+    SelectiveMaxUnitPropagations,
 }
 
 #[derive(Debug)]
@@ -113,7 +115,7 @@ impl DpllEngine {
         }
     }
 
-    fn choose_literal(&self) -> Option<IntLiteral> {
+    fn choose_literal(&self, branching_heuristic: DpllBranchingHeuristic) -> IntLiteral {
         type Scores<T> = (T, Vec<(T, T)>);
 
         let maxo = |clauses: &[&Clause]| {
@@ -155,15 +157,13 @@ impl DpllEngine {
             maxo(&minimum_size_clauses)
         };
 
-        fn choose_max_score<T: PartialEq>(
-            (max_count, occurrences): Scores<T>,
-        ) -> Option<IntLiteral> {
+        fn choose_max_score<T: PartialEq>((max_count, occurrences): Scores<T>) -> IntLiteral {
             for (i, count) in occurrences.into_iter().enumerate() {
                 if count.0 == max_count {
-                    return Some(IntLiteral::new((i + 1) as i32));
+                    return IntLiteral::new((i + 1) as i32);
                 }
                 if count.1 == max_count {
-                    return Some(IntLiteral::new(-((i + 1) as i32)));
+                    return IntLiteral::new(-((i + 1) as i32));
                 }
             }
 
@@ -171,8 +171,54 @@ impl DpllEngine {
             unreachable!()
         }
 
-        match self.branching_heuristic {
-            DpllBranchingHeuristic::First => self.clauses[0].0.iter().next().copied(),
+        let count_unit_propagations = |literal: IntLiteral, greedy: bool| {
+            let mut literals = HashSet::new();
+
+            let mut clauses = self.clauses.clone();
+            clauses.push(Clause(IntSet::from_iter([literal])));
+
+            let unsat =
+                apply_one_literal_rule(&mut clauses, &mut literals, &mut DiscardedExplanation);
+
+            if greedy {
+                if unsat || clauses.is_empty() {
+                    return None;
+                }
+            }
+
+            return Some(literals.len());
+        };
+
+        let max_unit_propagations = |greedy: bool| {
+            let mut visited = vec![false; self.initial_literal_count];
+
+            let mut max_score = 0;
+            let mut best_literal = None;
+            for clause in &self.clauses {
+                for &literal in &clause.0 {
+                    let value = (literal.abs_value().get() - 1) as usize;
+
+                    if !visited[value] {
+                        visited[value] = true;
+
+                        let score = match count_unit_propagations(literal, greedy) {
+                            None => return literal,
+                            Some(score) => score,
+                        };
+
+                        if max_score < score {
+                            max_score = score;
+                            best_literal = Some(literal);
+                        }
+                    }
+                }
+            }
+
+            best_literal.unwrap()
+        };
+
+        match branching_heuristic {
+            DpllBranchingHeuristic::First => self.clauses[0].0.iter().next().copied().unwrap(),
             DpllBranchingHeuristic::Random => {
                 // TODO: Initialize the random number generator once and reuse it.
                 let mut rng = rand::rng();
@@ -182,7 +228,12 @@ impl DpllEngine {
 
                 let random_literal_index = rng.random_range(..random_clause.0.len());
                 // TODO: Find a way to access the nth element in constant time.
-                random_clause.0.iter().nth(random_literal_index).copied()
+                random_clause
+                    .0
+                    .iter()
+                    .nth(random_literal_index)
+                    .copied()
+                    .unwrap()
             }
             DpllBranchingHeuristic::MaxOccurrences => {
                 choose_max_score(maxo(&self.clauses.iter().collect::<Vec<_>>()))
@@ -224,14 +275,40 @@ impl DpllEngine {
 
                 choose_max_score((max_score, scores))
             }
-            DpllBranchingHeuristic::MaxUnitPropagations => {
-                unimplemented!()
+            DpllBranchingHeuristic::MaxUnitPropagations => max_unit_propagations(false),
+            DpllBranchingHeuristic::GreedyMaxUnitPropagations => max_unit_propagations(true),
+            DpllBranchingHeuristic::SelectiveMaxUnitPropagations => {
+                let maxo = self.choose_literal(DpllBranchingHeuristic::MaxOccurrences);
+                let moms = self.choose_literal(DpllBranchingHeuristic::MaxOccurrencesMinSize);
+                let mams = self.choose_literal(
+                    DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize,
+                );
+                let jw = self.choose_literal(DpllBranchingHeuristic::JeroslawWang);
+
+                let literals = IntSet::from_iter([maxo, moms, mams, jw]);
+
+                let mut max_score = 0;
+                let mut best_literal = None;
+
+                for literal in literals {
+                    let score = match count_unit_propagations(literal, true) {
+                        None => return literal,
+                        Some(score) => score,
+                    };
+
+                    if max_score < score {
+                        max_score = score;
+                        best_literal = Some(literal);
+                    }
+                }
+
+                best_literal.unwrap()
             }
         }
     }
 
     fn apply_split(&mut self, explanation: &mut impl Explain) -> bool {
-        let literal = self.choose_literal().unwrap();
+        let literal = self.choose_literal(self.branching_heuristic);
 
         self.split_count += 1;
 
@@ -245,7 +322,6 @@ impl DpllEngine {
                 let positive_literal_clause_string = positive_literal_clause.to_string();
 
                 self.clauses.push(positive_literal_clause);
-                self.required_literals.insert(literal);
 
                 let positive_literal_result = self.apply_dpll(explanation.subexplanation(|| {
                     format!(
@@ -270,7 +346,6 @@ impl DpllEngine {
                 self.required_literals = literals;
 
                 self.clauses.push(negative_literal_clause);
-                self.required_literals.insert(literal.complement());
 
                 let result = self.apply_dpll(explanation.subexplanation(|| {
                     format!(
