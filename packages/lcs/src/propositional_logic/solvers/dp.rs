@@ -235,6 +235,8 @@ impl DpEngine {
     }
 }
 
+/// Applies the one literal rule as many times as possible.
+/// Returns true if the empty clause was found (i.e. the clause set is unsat).
 pub(super) fn apply_one_literal_rule<T>(
     clauses: &mut T,
     required_literals: &mut HashSet<IntLiteral>,
@@ -248,53 +250,92 @@ where
         || "Trying to apply the one literal rule",
         |explanation| match find_one_literal(&*clauses, explanation) {
             Some(literal) => {
-                required_literals.insert(literal);
+                let mut unit_literals = vec![literal];
+                while !unit_literals.is_empty() {
+                    let literal = unit_literals.pop().unwrap();
+                    required_literals.insert(literal);
 
-                replace_with_or_abort(clauses, |clauses| {
-                    clauses
-                        .into_iter()
-                        .enumerate()
-                        .filter_map(|(i, mut clause)| {
-                            if clause.0.contains(&literal) {
-                                explanation.step(|| {
-                                    format!(
-                                        "Removing clause {} because it contains {}",
-                                        format!("({})", i).to_string().magenta().markdown(),
-                                        literal.to_string().green().markdown()
-                                    )
-                                });
+                    let mut unsat = false;
 
-                                return None;
-                            }
-
-                            let complement = literal.complement();
-
-                            if clause.0.remove(&complement) {
-                                explanation.with_subexplanation(
-                                    || {
+                    replace_with_or_abort(clauses, |clauses| {
+                        clauses
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(|(i, mut clause)| {
+                                if clause.0.contains(&literal) {
+                                    explanation.step(|| {
                                         format!(
-                                            "Deleting {} from {}",
-                                            complement.to_string().red().markdown(),
+                                            "Removing clause {} because it contains {}",
                                             format!("({})", i).to_string().magenta().markdown(),
+                                            literal.to_string().green().markdown()
                                         )
-                                    },
-                                    |explanation| {
-                                        explanation.step(|| {
+                                    });
+
+                                    return None;
+                                }
+
+                                let complement = literal.complement();
+
+                                if clause.0.remove(&complement) {
+                                    explanation.with_subexplanation(
+                                        || {
                                             format!(
-                                                "Result: {}",
-                                                clause.to_string().blue().markdown(),
+                                                "Deleting {} from {}",
+                                                complement.to_string().red().markdown(),
+                                                format!("({})", i).to_string().magenta().markdown(),
                                             )
-                                        });
-                                    },
-                                );
-                            }
+                                        },
+                                        |explanation| {
+                                            explanation.step(|| {
+                                                format!(
+                                                    "Result: {}",
+                                                    clause.to_string().blue().markdown(),
+                                                )
+                                            });
+                                        },
+                                    );
 
-                            Some(clause)
-                        })
-                        .collect()
-                });
+                                    match clause.0.len() {
+                                        0 => {
+                                            explanation.step(|| {
+                                                format!(
+                                                    "Found an empty clause, therefore the formula is {}",
+                                                    "unsatisfiable".red().markdown()
+                                                )
+                                            });
 
-                true
+                                            unsat = true;
+
+                                            return None;
+                                        }
+
+                                        1 => {
+                                            unit_literals
+                                                .push(clause.0.iter().next().copied().unwrap());
+
+                                            explanation.step(|| {
+                                                format!(
+                                                    "Obtained new unit clause: {}",
+                                                    clause.to_string().blue().markdown()
+                                                )
+                                            });
+                                        }
+
+                                        _ => {}
+                                    }
+                                }
+
+                                Some(clause)
+                            })
+                            .collect()
+                    });
+
+                    if unsat {
+                        return true;
+                    }
+                }
+
+                false
             }
             None => false,
         },
