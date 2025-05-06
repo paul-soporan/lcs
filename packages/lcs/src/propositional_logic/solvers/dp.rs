@@ -381,7 +381,7 @@ fn find_pure_literal(
             for clause in clauses {
                 for literal in &clause.0 {
                     let entry = literals
-                        .entry(literal.abs())
+                        .entry(literal.abs_value())
                         .or_insert_with(|| BTreeSet::new());
                     entry.insert(literal);
                 }

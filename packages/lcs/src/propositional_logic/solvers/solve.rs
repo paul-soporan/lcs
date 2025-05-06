@@ -80,9 +80,8 @@ pub trait Solve {
                     .collect::<IndexSet<_>>();
 
                 let clause_set = ClauseSet {
-                    variable_count: variables.len(),
-                    clause_count: clauses.len(),
                     clauses,
+                    variable_count: variables.len(),
                 };
 
                 self.check_clause_set_satisfiability(clause_set, explanation)

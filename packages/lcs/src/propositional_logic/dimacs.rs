@@ -20,8 +20,8 @@ impl IntLiteral {
         IntLiteral(NonZeroI32::new(value).expect("Value cannot be zero"))
     }
 
-    pub fn abs(&self) -> Self {
-        IntLiteral(self.0.abs())
+    pub fn abs_value(&self) -> NonZeroI32 {
+        self.0.abs()
     }
 
     pub fn complement(&self) -> Self {
@@ -62,7 +62,7 @@ impl Display for IntLiteral {
 impl From<IntLiteral> for Literal {
     fn from(literal: IntLiteral) -> Self {
         Literal(
-            PropositionalVariable(format!("P{}", literal.abs().0)),
+            PropositionalVariable(format!("P{}", literal.abs_value())),
             literal.is_positive(),
         )
     }
@@ -115,9 +115,8 @@ impl Display for Clause {
 
 #[derive(Debug)]
 pub struct ClauseSet {
-    pub variable_count: usize,
-    pub clause_count: usize,
     pub clauses: IndexSet<Clause>,
+    pub variable_count: usize,
 }
 
 impl FromStr for ClauseSet {
@@ -189,7 +188,7 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
         variables.len()
     };
 
-    let clause_count = if let Some(count) = clause_count {
+    if let Some(count) = clause_count {
         if clauses.len() != count {
             return Err(format!(
                 "Expected {} clauses, found {}",
@@ -197,15 +196,16 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
                 clauses.len()
             ));
         }
+    }
 
-        count
-    } else {
-        clauses.len()
-    };
+    for variable in variables {
+        if variable > variable_count as i32 {
+            return Err(format!("Invalid variable number: {}", variable));
+        }
+    }
 
     Ok(ClauseSet {
-        variable_count,
-        clause_count,
         clauses,
+        variable_count,
     })
 }

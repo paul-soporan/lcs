@@ -181,7 +181,7 @@ fn find_new_resolvent(
                                 clause1
                                     .0
                                     .union(&clause2.0)
-                                    .filter(|l| l.abs() != literal.abs())
+                                    .filter(|l| l.abs_value() != literal.abs_value())
                                     .copied()
                                     .collect(),
                             );
