@@ -24,6 +24,10 @@ impl IntLiteral {
         self.0.abs()
     }
 
+    pub fn abs(&self) -> Self {
+        IntLiteral(self.0.abs())
+    }
+
     pub fn complement(&self) -> Self {
         IntLiteral(-self.0)
     }

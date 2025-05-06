@@ -1,7 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashSet};
 
 use colored::Colorize;
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 use replace_with::replace_with_or_abort;
 
 use crate::{
@@ -139,6 +139,7 @@ impl DpEngine {
                 if apply_pure_literal_rule(
                     &mut self.clauses,
                     &mut self.required_literals,
+                    0,
                     explanation,
                 ) {
                     continue;
@@ -370,6 +371,7 @@ fn find_one_literal(
 pub(super) fn apply_pure_literal_rule<T>(
     clauses: &mut T,
     required_literals: &mut HashSet<IntLiteral>,
+    literal_count: usize,
     explanation: &mut impl Explain,
 ) -> bool
 where
@@ -378,7 +380,7 @@ where
 {
     explanation.with_subexplanation(
         || "Trying to apply the pure literal rule",
-        |explanation| match find_pure_literal(&*clauses, explanation) {
+        |explanation| match find_pure_literal(&*clauses, literal_count, explanation) {
             Some(literal) => {
                 required_literals.insert(literal);
 
@@ -412,25 +414,34 @@ where
 
 fn find_pure_literal(
     clauses: impl IntoIterator<Item = &Clause>,
+    literal_count: usize,
     explanation: &mut impl Explain,
 ) -> Option<IntLiteral> {
     explanation.with_subexplanation(
         || "Looking for a pure literal",
         |explanation| {
-            let mut literals = BTreeMap::new();
+            let mut literals = IndexMap::with_capacity(literal_count);
 
             for clause in clauses {
-                for literal in &clause.0 {
+                for &literal in &clause.0 {
                     let entry = literals
-                        .entry(literal.abs_value())
-                        .or_insert_with(|| BTreeSet::new());
-                    entry.insert(literal);
+                        .entry(literal.abs())
+                        .or_insert_with(|| (false, false));
+                    if literal.is_positive() {
+                        entry.0 = true;
+                    } else {
+                        entry.1 = true;
+                    }
                 }
             }
 
-            for occurrences in literals.values() {
-                if occurrences.len() == 1 {
-                    let literal = occurrences.first().copied().unwrap();
+            for (literal, (appears_positive, appears_negative)) in literals {
+                if appears_positive ^ appears_negative {
+                    let literal = if appears_positive {
+                        literal
+                    } else {
+                        literal.complement()
+                    };
                     explanation.step(|| {
                         format!(
                             "Found a pure literal: {}",

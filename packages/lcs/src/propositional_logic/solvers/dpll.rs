@@ -97,7 +97,7 @@ struct DpllEngine {
     // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<Clause>,
     branching_heuristic: DpllBranchingHeuristic,
-    max_literal_value: usize,
+    initial_literal_count: usize,
     required_literals: HashSet<IntLiteral>,
     split_count: usize,
 }
@@ -106,9 +106,9 @@ impl DpllEngine {
     fn new(clause_set: ClauseSet, branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
             clauses: Vec::from_iter(clause_set.clauses),
-            max_literal_value: clause_set.variable_count,
+            initial_literal_count: clause_set.variable_count,
             branching_heuristic,
-            required_literals: HashSet::new(),
+            required_literals: HashSet::with_capacity(clause_set.variable_count),
             split_count: 0,
         }
     }
@@ -118,7 +118,7 @@ impl DpllEngine {
 
         let maxo = |clauses: &[&Clause]| {
             let mut max_count = 0;
-            let mut occurrences = vec![(0, 0); self.max_literal_value];
+            let mut occurrences = vec![(0, 0); self.initial_literal_count];
 
             for clause in clauses {
                 for literal in &clause.0 {
@@ -203,7 +203,7 @@ impl DpllEngine {
                 choose_max_score((max_score, mams))
             }
             DpllBranchingHeuristic::JeroslawWang => {
-                let mut scores = vec![(0f32, 0f32); self.max_literal_value];
+                let mut scores = vec![(0f32, 0f32); self.initial_literal_count];
 
                 let mut max_score = 0f32;
                 for clause in &self.clauses {
@@ -316,16 +316,6 @@ impl DpllEngine {
                     },
                 );
 
-                if self.clauses.is_empty() {
-                    explanation.step(|| {
-                        format!(
-                            "No clauses left, therefore the formula is {}",
-                            "satisfiable".green().markdown()
-                        )
-                    });
-                    return true;
-                }
-
                 if apply_one_literal_rule(
                     &mut self.clauses,
                     &mut self.required_literals,
@@ -344,9 +334,12 @@ impl DpllEngine {
                     return true;
                 }
 
+                let literal_count = self.initial_literal_count - self.required_literals.len();
+
                 if apply_pure_literal_rule(
                     &mut self.clauses,
                     &mut self.required_literals,
+                    literal_count,
                     explanation,
                 ) {
                     continue;
