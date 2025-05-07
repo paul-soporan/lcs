@@ -15,7 +15,7 @@ use lcs::{
         parser::{parse_clause, parse_clause_set, parse_proposition},
         solvers::{
             dp::DpSolver,
-            dpll::{DpllBranchingHeuristic, DpllSolver},
+            dpll::{BranchingHeuristic, DpllSolver},
             resolution::ResolutionSolver,
             solve::{Solve, SolverResult},
         },
@@ -46,7 +46,7 @@ fn subexercise_1() {
 
     let resolution_solver = ResolutionSolver::new();
     let dp_solver = DpSolver::new();
-    let dpll_solver = DpllSolver::new(DpllBranchingHeuristic::First);
+    let dpll_solver = DpllSolver::new(BranchingHeuristic::First);
 
     explanation.with_subexplanation(
         || {
@@ -120,7 +120,7 @@ fn subexercise_2() {
 
         let resolution_solver = ResolutionSolver::new();
         let dp_solver = DpSolver::new();
-        let dpll_solver = DpllSolver::new(DpllBranchingHeuristic::First);
+        let dpll_solver = DpllSolver::new(BranchingHeuristic::First);
 
         let cnf_string = cnf.to_string();
 
@@ -200,7 +200,7 @@ fn subexercise_3() {
 
     let resolution_solver = ResolutionSolver::new();
     let dp_solver = DpSolver::new();
-    let dpll_solver = DpllSolver::new(DpllBranchingHeuristic::First);
+    let dpll_solver = DpllSolver::new(BranchingHeuristic::First);
 
     let cnf_string = cnf.to_string();
 
@@ -267,7 +267,7 @@ fn subexercise_4() {
 
     let resolution_solver = ResolutionSolver::new();
     let dp_solver = DpSolver::new();
-    let dpll_solver = DpllSolver::new(DpllBranchingHeuristic::First);
+    let dpll_solver = DpllSolver::new(BranchingHeuristic::First);
 
     explanation.with_subexplanation(
         || format!("Checking validity for {}", formula.blue().markdown()),

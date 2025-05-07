@@ -117,7 +117,7 @@ impl Display for Clause {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ClauseSet {
     pub clauses: IndexSet<Clause>,
     pub variable_count: usize,

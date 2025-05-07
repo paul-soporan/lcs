@@ -132,7 +132,9 @@ impl DpEngine {
                     &mut self.clauses,
                     &mut self.required_literals,
                     explanation,
-                ) {
+                )
+                .is_some()
+                {
                     continue;
                 }
 
@@ -242,7 +244,7 @@ pub(super) fn apply_one_literal_rule<T>(
     clauses: &mut T,
     required_literals: &mut HashSet<IntLiteral>,
     explanation: &mut impl Explain,
-) -> bool
+) -> Option<IntLiteral>
 where
     T: IntoIterator<Item = Clause> + FromIterator<Clause>,
     for<'a> &'a T: IntoIterator<Item = &'a Clause>,
@@ -256,7 +258,7 @@ where
                     let literal = unit_literals.pop().unwrap();
                     required_literals.insert(literal);
 
-                    let mut unsat = false;
+                    let mut conflicting_literal = None;
 
                     replace_with_or_abort(clauses, |clauses| {
                         clauses
@@ -298,14 +300,7 @@ where
 
                                     match clause.0.len() {
                                         0 => {
-                                            explanation.step(|| {
-                                                format!(
-                                                    "Found an empty clause, therefore the formula is {}",
-                                                    "unsatisfiable".red().markdown()
-                                                )
-                                            });
-
-                                            unsat = true;
+                                            conflicting_literal = Some(complement);
 
                                             return None;
                                         }
@@ -331,14 +326,14 @@ where
                             .collect()
                     });
 
-                    if unsat {
-                        return true;
+                    if conflicting_literal.is_some() {
+                        return conflicting_literal;
                     }
                 }
 
-                false
+                None
             }
-            None => false,
+            None => None,
         },
     )
 }
