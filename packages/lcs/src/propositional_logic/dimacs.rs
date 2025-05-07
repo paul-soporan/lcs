@@ -138,9 +138,11 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
     let mut clause_count = None;
     let mut clauses = IndexSet::new();
 
+    // Duplicates can appear in the list, so we can't take the size of the set.
+    let mut clause_line_count = 0;
+
     for line in data.lines() {
-        // Skip empty lines and comments
-        if line.is_empty() || line.starts_with('c') {
+        if line.is_empty() || line.starts_with('c') || line == "%" || line == "0" {
             continue;
         }
 
@@ -174,6 +176,8 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
                     .collect(),
             );
 
+            clause_line_count += 1;
+
             clauses.insert(clause);
         }
     }
@@ -193,7 +197,7 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
     };
 
     if let Some(count) = clause_count {
-        if clauses.len() != count {
+        if clause_line_count != count {
             return Err(format!(
                 "Expected {} clauses, found {}",
                 count,

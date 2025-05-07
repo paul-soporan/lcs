@@ -3,5 +3,13 @@ name = "benchmarks"
 edition = "2021"
 
 [dependencies]
+average = "0.16.0"
 fork = "0.2.0"
 lcs = { path = "../lcs" }
+os_pipe = "1.2.1"
+rayon = "1.10.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+strum = { version = "0.27", features = ["derive"] }
+tokio = { version = "1.45.0", features = ["full"] }
+walkdir = "2.5.0"

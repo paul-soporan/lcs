@@ -1,8 +1,9 @@
-use std::{collections::HashSet, ops::Neg};
+use std::{collections::HashSet, fmt::Display, ops::Neg};
 
 use colored::Colorize;
 use nohash_hasher::IntSet;
 use rand::Rng;
+use strum::EnumIter;
 
 use crate::{
     explanation::{DiscardedExplanation, Explain},
@@ -53,7 +54,7 @@ impl SolverResult for DpllResult {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, EnumIter)]
 pub enum BranchingHeuristic {
     First,
     Random,
@@ -64,6 +65,28 @@ pub enum BranchingHeuristic {
     MaxUnitPropagations,
     GreedyMaxUnitPropagations,
     SelectiveMaxUnitPropagations,
+}
+
+impl Display for BranchingHeuristic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                BranchingHeuristic::First => "first",
+                BranchingHeuristic::Random => "random",
+                BranchingHeuristic::MaxOccurrences => "maxo",
+                BranchingHeuristic::MaxOccurrencesMinSize => "moms",
+                BranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
+                    "mams"
+                }
+                BranchingHeuristic::JeroslawWang => "jw",
+                BranchingHeuristic::MaxUnitPropagations => "up",
+                BranchingHeuristic::GreedyMaxUnitPropagations => "gup",
+                BranchingHeuristic::SelectiveMaxUnitPropagations => "sup",
+            }
+        )
+    }
 }
 
 #[derive(Debug)]
