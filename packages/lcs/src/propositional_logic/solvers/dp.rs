@@ -74,14 +74,14 @@ impl Solve for DpSolver {
 #[derive(Debug)]
 struct DpEngine {
     clauses: IndexSet<Clause>,
-    required_literals: HashSet<IntLiteral>,
+    assignments: HashSet<IntLiteral>,
 }
 
 impl DpEngine {
     fn new(clause_set: ClauseSet) -> Self {
         Self {
             clauses: clause_set.clauses,
-            required_literals: HashSet::new(),
+            assignments: HashSet::new(),
         }
     }
 
@@ -128,22 +128,22 @@ impl DpEngine {
                     }
                 }
 
-                if apply_one_literal_rule(
-                    &mut self.clauses,
-                    &mut self.required_literals,
-                    explanation,
-                )
-                .is_some()
-                {
-                    continue;
+                let conflicting_literal =
+                    apply_one_literal_rule(&mut self.clauses, &mut self.assignments, explanation);
+
+                if conflicting_literal.is_some() {
+                    explanation.step(|| {
+                        format!(
+                            "Found an empty clause, therefore the formula is {}",
+                            "unsatisfiable".red().markdown()
+                        )
+                    });
+
+                    return false;
                 }
 
-                if apply_pure_literal_rule(
-                    &mut self.clauses,
-                    &mut self.required_literals,
-                    0,
-                    explanation,
-                ) {
+                if apply_pure_literal_rule(&mut self.clauses, &mut self.assignments, 0, explanation)
+                {
                     continue;
                 }
 
@@ -176,7 +176,7 @@ impl DpEngine {
         let mut interpretation = Interpretation::default();
 
         explanation.with_subexplanation(|| "Building a satisfying truth valuation", |explanation| {
-            for literal in &self.required_literals {
+            for literal in &self.assignments {
                 let literal = literal.to_literal();
 
                 interpretation
@@ -242,7 +242,7 @@ impl DpEngine {
 /// Returns true if the empty clause was found (i.e. the clause set is unsat).
 pub(super) fn apply_one_literal_rule<T>(
     clauses: &mut T,
-    required_literals: &mut HashSet<IntLiteral>,
+    assignments: &mut HashSet<IntLiteral>,
     explanation: &mut impl Explain,
 ) -> Option<IntLiteral>
 where
@@ -256,7 +256,7 @@ where
                 let mut unit_literals = vec![literal];
                 while !unit_literals.is_empty() {
                     let literal = unit_literals.pop().unwrap();
-                    required_literals.insert(literal);
+                    assignments.insert(literal);
 
                     let mut conflicting_literal = None;
 
@@ -365,7 +365,7 @@ fn find_one_literal(
 
 pub(super) fn apply_pure_literal_rule<T>(
     clauses: &mut T,
-    required_literals: &mut HashSet<IntLiteral>,
+    assignments: &mut HashSet<IntLiteral>,
     literal_count: usize,
     explanation: &mut impl Explain,
 ) -> bool
@@ -377,7 +377,7 @@ where
         || "Trying to apply the pure literal rule",
         |explanation| match find_pure_literal(&*clauses, literal_count, explanation) {
             Some(literal) => {
-                required_literals.insert(literal);
+                assignments.insert(literal);
 
                 replace_with_or_abort(clauses, |clauses| {
                     clauses

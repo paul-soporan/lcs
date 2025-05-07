@@ -100,7 +100,7 @@ struct DpllEngine {
     clauses: Vec<Clause>,
     branching_heuristic: BranchingHeuristic,
     initial_literal_count: usize,
-    required_literals: HashSet<IntLiteral>,
+    assignments: HashSet<IntLiteral>,
     split_count: usize,
 }
 
@@ -110,7 +110,7 @@ impl DpllEngine {
             clauses: Vec::from_iter(clause_set.clauses),
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
-            required_literals: HashSet::with_capacity(clause_set.variable_count),
+            assignments: HashSet::with_capacity(clause_set.variable_count),
             split_count: 0,
         }
     }
@@ -128,7 +128,7 @@ impl DpllEngine {
             || format!("Splitting on {}", literal.to_string().green().markdown()),
             |explanation| {
                 let clauses = self.clauses.clone();
-                let literals = self.required_literals.clone();
+                let assignments = self.assignments.clone();
 
                 let positive_literal_clause = Clause(IntSet::from_iter([literal]));
                 let positive_literal_clause_string = positive_literal_clause.to_string();
@@ -155,7 +155,7 @@ impl DpllEngine {
                 let negative_literal_clause_string = negative_literal_clause.to_string();
 
                 self.clauses = clauses;
-                self.required_literals = literals;
+                self.assignments = assignments;
 
                 self.clauses.push(negative_literal_clause);
 
@@ -203,11 +203,8 @@ impl DpllEngine {
                     },
                 );
 
-                let conflicting_literal = apply_one_literal_rule(
-                    &mut self.clauses,
-                    &mut self.required_literals,
-                    explanation,
-                );
+                let conflicting_literal =
+                    apply_one_literal_rule(&mut self.clauses, &mut self.assignments, explanation);
                 if conflicting_literal.is_some() {
                     explanation.step(|| {
                         format!(
@@ -229,11 +226,11 @@ impl DpllEngine {
                     return true;
                 }
 
-                let literal_count = self.initial_literal_count - self.required_literals.len();
+                let literal_count = self.initial_literal_count - self.assignments.len();
 
                 if apply_pure_literal_rule(
                     &mut self.clauses,
-                    &mut self.required_literals,
+                    &mut self.assignments,
                     literal_count,
                     explanation,
                 ) {
@@ -267,7 +264,7 @@ impl DpllEngine {
         explanation.with_subexplanation(
             || "Building a satisfying truth valuation",
             |explanation| {
-                for literal in &self.required_literals {
+                for literal in &self.assignments {
                     let literal = literal.to_literal();
 
                     interpretation

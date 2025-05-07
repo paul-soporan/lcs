@@ -96,7 +96,7 @@ struct CdclEngine {
     history: Vec<CdclFrame>,
     branching_heuristic: BranchingHeuristic,
     initial_literal_count: usize,
-    required_literals: HashSet<IntLiteral>,
+    assignments: HashSet<IntLiteral>,
     split_count: usize,
 }
 
@@ -107,7 +107,7 @@ impl CdclEngine {
             history: Vec::new(),
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
-            required_literals: HashSet::with_capacity(clause_set.variable_count),
+            assignments: HashSet::with_capacity(clause_set.variable_count),
             split_count: 0,
         }
     }
@@ -162,7 +162,7 @@ impl CdclEngine {
 
                 let conflicting_literal = apply_one_literal_rule(
                     &mut self.clauses,
-                    &mut self.required_literals,
+                    &mut self.assignments,
                     explanation.subexplanation(|| "Applying unit propagation"),
                 );
 
@@ -214,7 +214,7 @@ impl CdclEngine {
 
                                 self.clauses = clauses;
                                 self.clauses.push(learned_clause);
-                                self.required_literals = assignments;
+                                self.assignments = assignments;
 
                                 break;
                             }
@@ -246,7 +246,7 @@ impl CdclEngine {
                         self.history.push(CdclFrame {
                             chosen_literal: literal,
                             clauses: self.clauses.clone(),
-                            assignments: self.required_literals.clone(),
+                            assignments: self.assignments.clone(),
                         });
 
                         self.clauses.push(Clause(IntSet::from_iter([literal])));
@@ -278,7 +278,7 @@ impl CdclEngine {
         explanation.with_subexplanation(
             || "Building a satisfying truth valuation",
             |explanation| {
-                for literal in &self.required_literals {
+                for literal in &self.assignments {
                     let literal = literal.to_literal();
 
                     interpretation
