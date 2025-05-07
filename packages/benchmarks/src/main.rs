@@ -164,6 +164,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for entry in WalkDir::new(&inputs_dir) {
         let file = entry?;
+        if file.file_type().is_dir() {
+            continue;
+        }
 
         let path = file.path();
 
@@ -172,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if path.extension() != Some(OsStr::new("cnf")) {
-            Err("Not a CNF file")?;
+            continue;
         }
 
         let path_str = path.to_string_lossy();
