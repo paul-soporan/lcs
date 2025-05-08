@@ -28,8 +28,8 @@ use strum::IntoEnumIterator;
 use tokio::fs;
 use walkdir::{DirEntry, WalkDir};
 
-const TIMEOUT_SECONDS: u64 = 5;
-const RUN_COUNT: usize = 10;
+const TIMEOUT_SECONDS: u64 = 30;
+const RUN_COUNT: usize = 5;
 
 struct BenchConfig<'a, T: Solve> {
     path: PathBuf,

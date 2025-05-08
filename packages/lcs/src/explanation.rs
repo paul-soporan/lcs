@@ -32,6 +32,22 @@ impl Explain for DiscardedExplanation {
     fn merge_subexplanations(&mut self, _: impl Fn(&[String]) -> String) {}
 }
 
+#[derive(Debug)]
+pub struct DebugExplanation;
+
+impl Explain for DebugExplanation {
+    fn step<S: Into<String>>(&mut self, step_fn: impl FnOnce() -> S) {
+        println!("Step: {}\n", step_fn().into());
+    }
+
+    fn subexplanation<S: Into<String>>(&mut self, description_fn: impl FnOnce() -> S) -> &mut Self {
+        println!("Subexplanation: {}\n", description_fn().into());
+        self
+    }
+
+    fn merge_subexplanations(&mut self, _: impl Fn(&[String]) -> String) {}
+}
+
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, EnumAsInner)]
 enum ExplanationComponent {
     Step(String),

@@ -13,7 +13,7 @@ use lcs::{
 };
 
 pub fn run() {
-    let branching_heuristic = BranchingHeuristic::SelectiveMaxUnitPropagations;
+    let branching_heuristic = BranchingHeuristic::First;
 
     let data = fs::read_to_string("test.cnf").unwrap();
     let clause_set = data.parse::<ClauseSet>().unwrap();

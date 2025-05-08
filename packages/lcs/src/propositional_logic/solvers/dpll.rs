@@ -312,7 +312,7 @@ impl DpllEngine {
 }
 
 pub(super) fn choose_literal(
-    clauses: &Vec<Clause>,
+    clauses: &[Clause],
     initial_literal_count: usize,
     branching_heuristic: BranchingHeuristic,
 ) -> IntLiteral {
@@ -374,7 +374,7 @@ pub(super) fn choose_literal(
     let count_unit_propagations = |literal: IntLiteral, greedy: bool| {
         let mut literals = HashSet::new();
 
-        let mut clauses = clauses.clone();
+        let mut clauses = clauses.to_vec();
         clauses.push(Clause(IntSet::from_iter([literal])));
 
         let conflicting_literal =
