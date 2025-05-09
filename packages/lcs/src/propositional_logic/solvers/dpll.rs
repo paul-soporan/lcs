@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Display, ops::Neg};
+use std::{fmt::Display, ops::Neg};
 
 use colored::Colorize;
 use nohash_hasher::IntSet;
@@ -123,7 +123,7 @@ struct DpllEngine {
     clauses: Vec<Clause>,
     branching_heuristic: BranchingHeuristic,
     initial_literal_count: usize,
-    assignments: HashSet<IntLiteral>,
+    assignments: IntSet<IntLiteral>,
     split_count: usize,
 }
 
@@ -133,7 +133,10 @@ impl DpllEngine {
             clauses: Vec::from_iter(clause_set.clauses),
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
-            assignments: HashSet::with_capacity(clause_set.variable_count),
+            assignments: IntSet::with_capacity_and_hasher(
+                clause_set.variable_count,
+                Default::default(),
+            ),
             split_count: 0,
         }
     }
@@ -372,7 +375,7 @@ pub(super) fn choose_literal(
     }
 
     let count_unit_propagations = |literal: IntLiteral, greedy: bool| {
-        let mut literals = HashSet::new();
+        let mut literals = IntSet::default();
 
         let mut clauses = clauses.to_vec();
         clauses.push(Clause(IntSet::from_iter([literal])));

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use colored::Colorize;
 use itertools::Itertools;
 use nohash_hasher::IntSet;
@@ -86,7 +84,7 @@ impl Solve for CdclSolver {
 struct CdclFrame {
     chosen_literal: IntLiteral,
     clauses: Vec<Clause>,
-    assignments: HashSet<IntLiteral>,
+    assignments: IntSet<IntLiteral>,
 }
 
 #[derive(Debug)]
@@ -96,7 +94,7 @@ struct CdclEngine {
     history: Vec<CdclFrame>,
     branching_heuristic: BranchingHeuristic,
     initial_literal_count: usize,
-    assignments: HashSet<IntLiteral>,
+    assignments: IntSet<IntLiteral>,
     split_count: usize,
 }
 
@@ -107,7 +105,10 @@ impl CdclEngine {
             history: Vec::new(),
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
-            assignments: HashSet::with_capacity(clause_set.variable_count),
+            assignments: IntSet::with_capacity_and_hasher(
+                clause_set.variable_count,
+                Default::default(),
+            ),
             split_count: 0,
         }
     }

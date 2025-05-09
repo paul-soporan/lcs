@@ -1,7 +1,8 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::BTreeSet;
 
 use colored::Colorize;
 use indexmap::{IndexMap, IndexSet};
+use nohash_hasher::IntSet;
 use replace_with::replace_with_or_abort;
 
 use crate::{
@@ -74,14 +75,14 @@ impl Solve for DpSolver {
 #[derive(Debug)]
 struct DpEngine {
     clauses: IndexSet<Clause>,
-    assignments: HashSet<IntLiteral>,
+    assignments: IntSet<IntLiteral>,
 }
 
 impl DpEngine {
     fn new(clause_set: ClauseSet) -> Self {
         Self {
             clauses: clause_set.clauses,
-            assignments: HashSet::new(),
+            assignments: IntSet::default(),
         }
     }
 
@@ -242,7 +243,7 @@ impl DpEngine {
 /// Returns true if the empty clause was found (i.e. the clause set is unsat).
 pub(super) fn apply_one_literal_rule<T>(
     clauses: &mut T,
-    assignments: &mut HashSet<IntLiteral>,
+    assignments: &mut IntSet<IntLiteral>,
     explanation: &mut impl Explain,
 ) -> Option<IntLiteral>
 where
@@ -365,7 +366,7 @@ fn find_one_literal(
 
 pub(super) fn apply_pure_literal_rule<T>(
     clauses: &mut T,
-    assignments: &mut HashSet<IntLiteral>,
+    assignments: &mut IntSet<IntLiteral>,
     literal_count: usize,
     explanation: &mut impl Explain,
 ) -> bool
