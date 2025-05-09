@@ -390,16 +390,21 @@ pub(super) fn choose_literal(
     };
 
     let max_unit_propagations = |greedy: bool| {
-        let mut visited = vec![false; initial_literal_count];
+        let mut visited = vec![(false, false); initial_literal_count];
 
         let mut max_score = 0;
         let mut best_literal = None;
         for clause in clauses {
             for &literal in &clause.0 {
                 let value = (literal.abs_value().get() - 1) as usize;
+                let visited = if literal.is_positive() {
+                    &mut visited[value].0
+                } else {
+                    &mut visited[value].1
+                };
 
-                if !visited[value] {
-                    visited[value] = true;
+                if !*visited {
+                    *visited = true;
 
                     let score = match count_unit_propagations(literal, greedy) {
                         None => return literal,
