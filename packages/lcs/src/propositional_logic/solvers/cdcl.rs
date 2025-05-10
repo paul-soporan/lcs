@@ -1,8 +1,12 @@
-use std::collections::{HashSet, VecDeque};
+use std::{
+    collections::{HashSet, VecDeque},
+    fmt::Display,
+};
 
 use colored::Colorize;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
+use strum::EnumIter;
 
 use crate::{
     explanation::Explain,
@@ -13,10 +17,7 @@ use crate::{
     },
 };
 
-use super::{
-    dpll::BranchingHeuristic,
-    solve::{Solve, SolverResult},
-};
+use super::solve::{Solve, SolverResult};
 
 #[derive(Debug)]
 pub struct CdclResult {
@@ -26,18 +27,22 @@ pub struct CdclResult {
 }
 
 impl CdclResult {
-    pub fn split_count(&self) -> usize {
-        0
+    pub fn decision_count(&self) -> usize {
+        self.engine.decision_count
+    }
+
+    pub fn conflict_count(&self) -> usize {
+        self.engine.conflict_count
+    }
+
+    pub fn propagation_count(&self) -> usize {
+        self.engine.propagation_count
     }
 }
 
 impl SolverResult for CdclResult {
     fn value(&self) -> bool {
         self.value
-    }
-
-    fn step_count(&self) -> usize {
-        0
     }
 
     fn flip_value(&mut self) {
@@ -53,13 +58,30 @@ impl SolverResult for CdclResult {
     }
 }
 
+#[derive(Debug, Clone, Copy, EnumIter)]
+pub enum CdclBranchingHeuristic {
+    First,
+}
+
+impl Display for CdclBranchingHeuristic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                CdclBranchingHeuristic::First => "first",
+            }
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct CdclSolver {
-    branching_heuristic: BranchingHeuristic,
+    branching_heuristic: CdclBranchingHeuristic,
 }
 
 impl CdclSolver {
-    pub fn new(branching_heuristic: BranchingHeuristic) -> Self {
+    pub fn new(branching_heuristic: CdclBranchingHeuristic) -> Self {
         Self {
             branching_heuristic,
         }
@@ -104,12 +126,17 @@ struct CdclEngine {
     unit_propagate: IntSet<IntLiteral>,
     assignment_stack: Vec<AssignmentEntry>,
     variable_levels: Vec<usize>,
-    branching_heuristic: BranchingHeuristic,
+    branching_heuristic: CdclBranchingHeuristic,
     initial_literal_count: usize,
+
+    // Stats
+    decision_count: usize,
+    conflict_count: usize,
+    propagation_count: usize,
 }
 
 impl CdclEngine {
-    fn new(clause_set: ClauseSet, branching_heuristic: BranchingHeuristic) -> Self {
+    fn new(clause_set: ClauseSet, branching_heuristic: CdclBranchingHeuristic) -> Self {
         let mut engine = Self {
             clauses: Vec::with_capacity(clause_set.clauses.len()),
             watchers: IntMap::default(),
@@ -126,6 +153,10 @@ impl CdclEngine {
             variable_levels: vec![0; clause_set.variable_count],
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
+
+            decision_count: 0,
+            conflict_count: 0,
+            propagation_count: 0,
         };
 
         clause_set.clauses.into_iter().for_each(|clause| {
@@ -248,11 +279,7 @@ impl CdclEngine {
         });
     }
 
-    fn unit_propagation(
-        &mut self,
-        initial_literal: Option<IntLiteral>,
-        explanation: &mut impl Explain,
-    ) -> Option<Clause> {
+    fn unit_propagation(&mut self, explanation: &mut impl Explain) -> Option<Clause> {
         explanation.with_subexplanation(
             || "Applying unit propagation",
             |explanation| {
@@ -270,27 +297,15 @@ impl CdclEngine {
                     )
                 });
 
-                explanation.step(|| {
-                    format!(
-                        "Also unit propagating: {}",
-                        initial_literal
-                            .map(|literal| literal.to_string())
-                            .unwrap_or_else(|| "None".to_string())
-                            .green()
-                            .markdown()
-                    )
-                });
-
                 let mut queue = VecDeque::from_iter(self.unit_propagate.iter().copied());
                 self.unit_propagate.clear();
-                if let Some(initial_literal) = initial_literal {
-                    queue.push_back(initial_literal);
-                }
 
                 while let Some(literal) = queue.pop_front() {
                     let explanation = explanation.subexplanation(|| {
                         format!("Unit literal: {}", literal.to_string().green().markdown())
                     });
+
+                    self.propagation_count += 1;
 
                     explanation.step(|| {
                         format!(
@@ -548,27 +563,20 @@ impl CdclEngine {
         let result = explanation.with_subexplanation(
             || "Applying the CDCL algorithm",
             |explanation| {
-                let mut unit_literal = None;
+
+                // let unit_literal = self
+                // .clauses
+                // .iter()
+                // .filter(|clause| clause.clause.0.len() == 1)
+                // .map(|clause| clause.clause.0.iter().next().unwrap())
+                // .next()
+                // .copied();
+                // self.unit_propagate.insert();
 
                 loop {
                     let explanation = explanation.subexplanation(|| "CDCL step");
 
-                    let literal = match unit_literal {
-                        Some(literal) => Some(literal),
-                        None => {
-                            let literal = self
-                                .clauses
-                                .iter()
-                                .filter(|clause| clause.clause.0.len() == 1)
-                                .map(|clause| clause.clause.0.iter().next().unwrap())
-                                .next()
-                                .copied();
-
-                            literal
-                        }
-                    };
-
-                    let conflict_clause = self.unit_propagation(literal, explanation);
+                    let conflict_clause = self.unit_propagation( explanation);
 
                     explanation.with_subexplanation(
                         || {
@@ -596,6 +604,8 @@ impl CdclEngine {
 
                     match conflict_clause {
                         Some(conflict_clause) => {
+                            self.conflict_count += 1;
+
                             if self.decision_level == 0 {
                                 explanation.step(|| {
                                     format!(
@@ -623,8 +633,6 @@ impl CdclEngine {
                                     learned_clause.to_string().red().markdown()
                                 )
                             });
-
-                            unit_literal = None;
 
                             if learned_clause.0.len() == 1 {
                                 self.backjump(backjump_level, explanation);
@@ -674,6 +682,8 @@ impl CdclEngine {
                                 })
                                 .unwrap();
 
+                            self.decision_count += 1;
+
                             // let literal = choose_literal(
                             //     &self.clauses,
                             //     self.initial_literal_count,
@@ -688,7 +698,7 @@ impl CdclEngine {
 
                             self.decision_level += 1;
 
-                            unit_literal = Some(literal);
+                            self.unit_propagate.insert(literal);
                             self.assignments.insert(literal);
                             self.assignment_stack.push(AssignmentEntry {
                                 literal,

@@ -13,7 +13,6 @@ use indexmap::IndexSet;
 
 pub trait SolverResult {
     fn value(&self) -> bool;
-    fn step_count(&self) -> usize;
 
     fn flip_value(&mut self);
 

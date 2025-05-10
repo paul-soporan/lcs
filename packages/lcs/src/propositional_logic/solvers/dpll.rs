@@ -27,18 +27,14 @@ pub struct DpllResult {
 }
 
 impl DpllResult {
-    pub fn split_count(&self) -> usize {
-        self.engine.split_count
+    pub fn decision_count(&self) -> usize {
+        self.engine.decision_count
     }
 }
 
 impl SolverResult for DpllResult {
     fn value(&self) -> bool {
         self.value
-    }
-
-    fn step_count(&self) -> usize {
-        0
     }
 
     fn flip_value(&mut self) {
@@ -55,7 +51,7 @@ impl SolverResult for DpllResult {
 }
 
 #[derive(Debug, Clone, Copy, EnumIter)]
-pub enum BranchingHeuristic {
+pub enum DpllBranchingHeuristic {
     First,
     Random,
     MaxOccurrences,
@@ -67,23 +63,23 @@ pub enum BranchingHeuristic {
     SelectiveMaxUnitPropagations,
 }
 
-impl Display for BranchingHeuristic {
+impl Display for DpllBranchingHeuristic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                BranchingHeuristic::First => "first",
-                BranchingHeuristic::Random => "random",
-                BranchingHeuristic::MaxOccurrences => "maxo",
-                BranchingHeuristic::MaxOccurrencesMinSize => "moms",
-                BranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
+                DpllBranchingHeuristic::First => "first",
+                DpllBranchingHeuristic::Random => "random",
+                DpllBranchingHeuristic::MaxOccurrences => "maxo",
+                DpllBranchingHeuristic::MaxOccurrencesMinSize => "moms",
+                DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
                     "mams"
                 }
-                BranchingHeuristic::JeroslawWang => "jw",
-                BranchingHeuristic::MaxUnitPropagations => "up",
-                BranchingHeuristic::GreedyMaxUnitPropagations => "gup",
-                BranchingHeuristic::SelectiveMaxUnitPropagations => "sup",
+                DpllBranchingHeuristic::JeroslawWang => "jw",
+                DpllBranchingHeuristic::MaxUnitPropagations => "up",
+                DpllBranchingHeuristic::GreedyMaxUnitPropagations => "gup",
+                DpllBranchingHeuristic::SelectiveMaxUnitPropagations => "sup",
             }
         )
     }
@@ -91,11 +87,11 @@ impl Display for BranchingHeuristic {
 
 #[derive(Debug)]
 pub struct DpllSolver {
-    branching_heuristic: BranchingHeuristic,
+    branching_heuristic: DpllBranchingHeuristic,
 }
 
 impl DpllSolver {
-    pub fn new(branching_heuristic: BranchingHeuristic) -> Self {
+    pub fn new(branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
             branching_heuristic,
         }
@@ -121,14 +117,14 @@ impl Solve for DpllSolver {
 struct DpllEngine {
     // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<Clause>,
-    branching_heuristic: BranchingHeuristic,
+    branching_heuristic: DpllBranchingHeuristic,
     initial_literal_count: usize,
     assignments: IntSet<IntLiteral>,
-    split_count: usize,
+    decision_count: usize,
 }
 
 impl DpllEngine {
-    fn new(clause_set: ClauseSet, branching_heuristic: BranchingHeuristic) -> Self {
+    fn new(clause_set: ClauseSet, branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
             clauses: Vec::from_iter(clause_set.clauses),
             initial_literal_count: clause_set.variable_count,
@@ -137,7 +133,7 @@ impl DpllEngine {
                 clause_set.variable_count,
                 Default::default(),
             ),
-            split_count: 0,
+            decision_count: 0,
         }
     }
 
@@ -148,7 +144,7 @@ impl DpllEngine {
             self.branching_heuristic,
         );
 
-        self.split_count += 1;
+        self.decision_count += 1;
 
         explanation.with_subexplanation(
             || format!("Splitting on {}", literal.to_string().green().markdown()),
@@ -317,7 +313,7 @@ impl DpllEngine {
 pub(super) fn choose_literal(
     clauses: &[Clause],
     initial_literal_count: usize,
-    branching_heuristic: BranchingHeuristic,
+    branching_heuristic: DpllBranchingHeuristic,
 ) -> IntLiteral {
     type Scores<T> = (T, Vec<(T, T)>);
 
@@ -426,8 +422,8 @@ pub(super) fn choose_literal(
     };
 
     match branching_heuristic {
-        BranchingHeuristic::First => clauses[0].0.iter().next().copied().unwrap(),
-        BranchingHeuristic::Random => {
+        DpllBranchingHeuristic::First => clauses[0].0.iter().next().copied().unwrap(),
+        DpllBranchingHeuristic::Random => {
             // TODO: Initialize the random number generator once and reuse it.
             let mut rng = rand::rng();
 
@@ -443,11 +439,11 @@ pub(super) fn choose_literal(
                 .copied()
                 .unwrap()
         }
-        BranchingHeuristic::MaxOccurrences => {
+        DpllBranchingHeuristic::MaxOccurrences => {
             choose_max_score(maxo(&clauses.iter().collect::<Vec<_>>()))
         }
-        BranchingHeuristic::MaxOccurrencesMinSize => choose_max_score(moms(&clauses)),
-        BranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
+        DpllBranchingHeuristic::MaxOccurrencesMinSize => choose_max_score(moms(&clauses)),
+        DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
             let (_, mut mams) = maxo(&clauses.iter().collect::<Vec<_>>());
             let (_, moms) = moms(&clauses);
 
@@ -461,7 +457,7 @@ pub(super) fn choose_literal(
 
             choose_max_score((max_score, mams))
         }
-        BranchingHeuristic::JeroslawWang => {
+        DpllBranchingHeuristic::JeroslawWang => {
             let mut scores = vec![(0f32, 0f32); initial_literal_count];
 
             let mut max_score = 0f32;
@@ -483,28 +479,28 @@ pub(super) fn choose_literal(
 
             choose_max_score((max_score, scores))
         }
-        BranchingHeuristic::MaxUnitPropagations => max_unit_propagations(false),
-        BranchingHeuristic::GreedyMaxUnitPropagations => max_unit_propagations(true),
-        BranchingHeuristic::SelectiveMaxUnitPropagations => {
+        DpllBranchingHeuristic::MaxUnitPropagations => max_unit_propagations(false),
+        DpllBranchingHeuristic::GreedyMaxUnitPropagations => max_unit_propagations(true),
+        DpllBranchingHeuristic::SelectiveMaxUnitPropagations => {
             let maxo = choose_literal(
                 clauses,
                 initial_literal_count,
-                BranchingHeuristic::MaxOccurrences,
+                DpllBranchingHeuristic::MaxOccurrences,
             );
             let moms = choose_literal(
                 clauses,
                 initial_literal_count,
-                BranchingHeuristic::MaxOccurrencesMinSize,
+                DpllBranchingHeuristic::MaxOccurrencesMinSize,
             );
             let mams = choose_literal(
                 clauses,
                 initial_literal_count,
-                BranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize,
+                DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize,
             );
             let jw = choose_literal(
                 clauses,
                 initial_literal_count,
-                BranchingHeuristic::JeroslawWang,
+                DpllBranchingHeuristic::JeroslawWang,
             );
 
             let literals = IntSet::from_iter([maxo, moms, mams, jw]);

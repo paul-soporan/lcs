@@ -31,10 +31,6 @@ impl SolverResult for DpResult {
         self.value
     }
 
-    fn step_count(&self) -> usize {
-        0
-    }
-
     fn flip_value(&mut self) {
         self.value = !self.value;
     }

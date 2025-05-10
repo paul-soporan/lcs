@@ -16,16 +16,11 @@ use super::solve::{Solve, SolverResult};
 #[derive(Debug)]
 pub struct ResolutionResult {
     value: bool,
-    step_count: usize,
 }
 
 impl SolverResult for ResolutionResult {
     fn value(&self) -> bool {
         self.value
-    }
-
-    fn step_count(&self) -> usize {
-        self.step_count
     }
 
     fn flip_value(&mut self) {
@@ -53,10 +48,7 @@ impl Solve for ResolutionSolver {
         let mut engine = ResolutionEngine::new(clause_set);
         let value = engine.apply_resolution(explanation);
 
-        ResolutionResult {
-            value,
-            step_count: 0,
-        }
+        ResolutionResult { value }
     }
 }
 

@@ -5,22 +5,22 @@ use lcs::{
     propositional_logic::{
         dimacs::ClauseSet,
         solvers::{
-            cdcl::CdclSolver,
-            dpll::{BranchingHeuristic, DpllSolver},
+            cdcl::{CdclBranchingHeuristic, CdclSolver},
+            dpll::{DpllBranchingHeuristic, DpllSolver},
             solve::{Solve, SolverResult},
         },
     },
 };
 
 pub fn run() {
-    let branching_heuristic = BranchingHeuristic::First;
+    let dpll_branching_heuristic = DpllBranchingHeuristic::First;
 
     let data = fs::read_to_string("test.cnf").unwrap();
     let clause_set = data.parse::<ClauseSet>().unwrap();
 
     let instant = Instant::now();
 
-    let solver = DpllSolver::new(branching_heuristic);
+    let solver = DpllSolver::new(dpll_branching_heuristic);
     let result =
         solver.check_clause_set_satisfiability(clause_set.clone(), &mut DiscardedExplanation);
 
@@ -30,14 +30,16 @@ pub fn run() {
         "DPLL result: {}",
         if result.value() { "SAT" } else { "UNSAT" }
     );
-    println!("Split count: {}", result.split_count());
+    println!("Decision count: {}", result.decision_count());
     println!("Elapsed time: {:?}", elapsed);
 
     println!("-------------------------------------");
 
     let instant = Instant::now();
 
-    let solver = CdclSolver::new(branching_heuristic);
+    let cdcl_branching_heuristic = CdclBranchingHeuristic::First;
+
+    let solver = CdclSolver::new(cdcl_branching_heuristic);
     let result =
         solver.check_clause_set_satisfiability(clause_set.clone(), &mut DiscardedExplanation);
 
@@ -47,6 +49,8 @@ pub fn run() {
         "CDCL result: {}",
         if result.value() { "SAT" } else { "UNSAT" }
     );
-    println!("Split count: {}", result.split_count());
+    println!("Decision count: {}", result.decision_count());
+    println!("Conflict count: {}", result.conflict_count());
+    println!("Propagation count: {}", result.propagation_count());
     println!("Elapsed time: {:?}", elapsed);
 }

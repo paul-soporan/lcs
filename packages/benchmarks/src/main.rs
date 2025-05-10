@@ -9,13 +9,13 @@ use std::{
 
 use average::{concatenate, Estimate, Max, Mean, Min};
 use fork::{fork, waitpid, Fork};
-use lcs::propositional_logic::solvers::cdcl::CdclSolver;
+use lcs::propositional_logic::solvers::cdcl::{CdclBranchingHeuristic, CdclSolver};
 use lcs::{
     explanation::DiscardedExplanation,
     propositional_logic::{
         dimacs::ClauseSet,
         solvers::{
-            dpll::{BranchingHeuristic, DpllSolver},
+            dpll::{DpllBranchingHeuristic, DpllSolver},
             solve::{Solve, SolverResult},
         },
     },
@@ -116,7 +116,7 @@ fn bench_process<T: Solve>(config: &BenchConfig<T>) -> Option<f64> {
 }
 
 fn bench_file(file: &DirEntry, expected_result: Option<bool>) -> (&Path, serde_json::Value) {
-    let dpll_results = Map::from_iter(BranchingHeuristic::iter().map(|heuristic| {
+    let dpll_results = Map::from_iter(DpllBranchingHeuristic::iter().map(|heuristic| {
         let config = BenchConfig {
             path: file.path().to_path_buf(),
             expected_result,
@@ -129,7 +129,7 @@ fn bench_file(file: &DirEntry, expected_result: Option<bool>) -> (&Path, serde_j
         )
     }));
 
-    let cdcl_results = Map::from_iter(BranchingHeuristic::iter().map(|heuristic| {
+    let cdcl_results = Map::from_iter(CdclBranchingHeuristic::iter().map(|heuristic| {
         let config = BenchConfig {
             path: file.path().to_path_buf(),
             expected_result,
