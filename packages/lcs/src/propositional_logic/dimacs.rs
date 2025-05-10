@@ -74,7 +74,7 @@ impl From<IntLiteral> for Literal {
 
 // IntSet is a HashSet that uses the NoHashHasher.
 // Therefore, iteration order is deterministic.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Clause(pub IntSet<IntLiteral>);
 
 impl PartialOrd for Clause {
