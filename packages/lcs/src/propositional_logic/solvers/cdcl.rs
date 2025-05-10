@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    dpll::{choose_literal, BranchingHeuristic},
+    dpll::BranchingHeuristic,
     solve::{Solve, SolverResult},
 };
 
@@ -98,7 +98,7 @@ struct AssignmentEntry {
 struct CdclEngine {
     // For CDCL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<WatchedClause>,
-    watchers: IntMap<IntLiteral, Vec<usize>>,
+    watchers: IntMap<IntLiteral, IntSet<usize>>,
     decision_level: usize,
     assignments: IntSet<IntLiteral>,
     unit_propagate: IntSet<IntLiteral>,
@@ -174,12 +174,12 @@ impl CdclEngine {
 
         self.watchers
             .entry(first_watcher)
-            .or_insert_with(Vec::new)
-            .push(index);
+            .or_insert_with(IntSet::default)
+            .insert(index);
         self.watchers
             .entry(second_watcher)
-            .or_insert_with(Vec::new)
-            .push(index);
+            .or_insert_with(IntSet::default)
+            .insert(index);
 
         self.clauses.push(WatchedClause {
             clause,
@@ -312,10 +312,8 @@ impl CdclEngine {
                             let clause = &mut self.clauses[i];
                             let (other, complement_ref) = if clause.first_watcher == complement {
                                 (clause.second_watcher, &mut clause.first_watcher)
-                            } else if clause.second_watcher == complement {
-                                (clause.first_watcher, &mut clause.second_watcher)
                             } else {
-                                continue;
+                                (clause.first_watcher, &mut clause.second_watcher)
                             };
 
                             if self.assignments.contains(&other) {
@@ -332,8 +330,12 @@ impl CdclEngine {
 
                                     self.watchers
                                         .entry(literal)
-                                        .or_insert_with(Vec::new)
-                                        .push(i);
+                                        .or_insert_with(IntSet::default)
+                                        .insert(i);
+
+                                    self.watchers.entry(complement).and_modify(|c| {
+                                        c.remove(&i);
+                                    });
 
                                     continue 'outer;
                                 }
@@ -353,8 +355,6 @@ impl CdclEngine {
 
                             queue.push_back(other);
                         }
-
-                        // self.watchers.entry(complement).and_modify(|c| c.clear());
                     }
                 }
 
