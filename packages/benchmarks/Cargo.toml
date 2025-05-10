@@ -6,6 +6,7 @@ edition = "2021"
 average = "0.16.0"
 fork = "0.2.0"
 lcs = { path = "../lcs" }
+memory-stats = "1.2.0"
 os_pipe = "1.2.1"
 rayon = "1.10.0"
 serde = { version = "1.0.219", features = ["derive"] }

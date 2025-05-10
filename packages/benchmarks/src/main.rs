@@ -1,5 +1,7 @@
 use std::env;
 use std::io::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -7,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use average::{concatenate, Estimate, Max, Mean, Min};
+use average::{Estimate, Mean};
 use fork::{fork, waitpid, Fork};
 use lcs::propositional_logic::solvers::cdcl::{CdclBranchingHeuristic, CdclSolver};
 use lcs::{
@@ -20,6 +22,7 @@ use lcs::{
         },
     },
 };
+use memory_stats::memory_stats;
 use os_pipe::pipe;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -31,6 +34,41 @@ use walkdir::{DirEntry, WalkDir};
 const TIMEOUT_SECONDS: u64 = 30;
 const RUN_COUNT: usize = 5;
 
+#[derive(Clone)]
+pub struct CancellationToken {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CancellationToken {
+    #[inline]
+    pub fn should_cancel(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+#[derive(Clone)]
+pub struct Canceller {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Canceller {
+    #[inline]
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+}
+
+#[inline]
+pub fn cancellation_token() -> (Canceller, CancellationToken) {
+    let cancelled = Arc::new(AtomicBool::new(false));
+    (
+        Canceller {
+            cancelled: Arc::clone(&cancelled),
+        },
+        CancellationToken { cancelled },
+    )
+}
+
 struct BenchConfig<'a, T: Solve> {
     path: PathBuf,
     expected_result: Option<bool>,
@@ -39,12 +77,9 @@ struct BenchConfig<'a, T: Solve> {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 struct BenchResult {
-    mean: f64,
-    min: f64,
-    max: f64,
+    mean_time: f64,
+    max_memory_usage: usize,
 }
-
-concatenate!(MeanMinMax, [Mean, mean], [Min, min], [Max, max]);
 
 fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
     let data = std::fs::read_to_string(&config.path).unwrap();
@@ -52,7 +87,28 @@ fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
 
     let solver = (config.get_solver)();
 
-    let mut estimator = MeanMinMax::new();
+    let mut estimator = Mean::new();
+
+    let (canceller, cancellation_token) = cancellation_token();
+
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let mut max_memory_usage = 0;
+
+        loop {
+            let usage = memory_stats().expect("Failed to get memory stats");
+
+            max_memory_usage = max_memory_usage.max(usage.physical_mem);
+
+            thread::sleep(Duration::from_millis(30));
+
+            if cancellation_token.should_cancel() {
+                tx.send(max_memory_usage).unwrap();
+                break;
+            }
+        }
+    });
 
     for _ in 0..RUN_COUNT {
         let instant = Instant::now();
@@ -69,14 +125,16 @@ fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
         }
     }
 
+    canceller.cancel();
+    let max_memory_usage = rx.recv().unwrap();
+
     BenchResult {
-        mean: estimator.mean(),
-        min: estimator.min(),
-        max: estimator.max(),
+        mean_time: estimator.mean(),
+        max_memory_usage,
     }
 }
 
-fn bench_process<T: Solve>(config: &BenchConfig<T>) -> Option<f64> {
+fn bench_process<T: Solve>(config: &BenchConfig<T>) -> Option<BenchResult> {
     let (mut reader, writer) = pipe().expect("Failed to create pipe");
 
     match fork() {
@@ -89,9 +147,7 @@ fn bench_process<T: Solve>(config: &BenchConfig<T>) -> Option<f64> {
                     .read_to_string(&mut result_str)
                     .expect("Failed to read from pipe");
 
-                let result: Option<BenchResult> = serde_json::from_str(&result_str).ok();
-
-                return result.map(|r| r.mean);
+                return serde_json::from_str(&result_str).ok();
             }
             Err(_) => eprintln!("Failed to wait on child"),
         },
