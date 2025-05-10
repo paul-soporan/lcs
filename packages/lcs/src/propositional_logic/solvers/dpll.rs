@@ -140,6 +140,7 @@ impl DpllEngine {
     fn apply_split(&mut self, explanation: &mut impl Explain) -> bool {
         let literal = choose_literal(
             &self.clauses,
+            &self.assignments,
             self.initial_literal_count,
             self.branching_heuristic,
         );
@@ -312,6 +313,7 @@ impl DpllEngine {
 
 pub(super) fn choose_literal(
     clauses: &[Clause],
+    assignments: &IntSet<IntLiteral>,
     initial_literal_count: usize,
     branching_heuristic: DpllBranchingHeuristic,
 ) -> IntLiteral {
@@ -411,17 +413,26 @@ pub(super) fn choose_literal(
             // TODO: Initialize the random number generator once and reuse it.
             let mut rng = rand::rng();
 
-            let random_clause_index = rng.random_range(..clauses.len());
-            let random_clause = &clauses[random_clause_index];
+            let unassigned_literals = (1..=initial_literal_count as i32)
+                .filter_map(|i| {
+                    let literal = IntLiteral::new(i);
+                    if assignments.contains(&literal) || assignments.contains(&literal.complement())
+                    {
+                        None
+                    } else {
+                        Some(literal)
+                    }
+                })
+                .collect::<Vec<_>>();
 
-            let random_literal_index = rng.random_range(..random_clause.0.len());
-            // TODO: Find a way to access the nth element in constant time.
-            random_clause
-                .0
-                .iter()
-                .nth(random_literal_index)
-                .copied()
-                .unwrap()
+            let random_literal_index = rng.random_range(..unassigned_literals.len());
+            let random_literal = unassigned_literals[random_literal_index];
+
+            if rng.random_bool(0.5) {
+                random_literal
+            } else {
+                random_literal.complement()
+            }
         }
         DpllBranchingHeuristic::MaxOccurrences => {
             choose_max_score(maxo(&clauses.iter().collect::<Vec<_>>()))
@@ -468,21 +479,25 @@ pub(super) fn choose_literal(
         DpllBranchingHeuristic::SelectiveMaxUnitPropagations => {
             let maxo = choose_literal(
                 clauses,
+                assignments,
                 initial_literal_count,
                 DpllBranchingHeuristic::MaxOccurrences,
             );
             let moms = choose_literal(
                 clauses,
+                assignments,
                 initial_literal_count,
                 DpllBranchingHeuristic::MaxOccurrencesMinSize,
             );
             let mams = choose_literal(
                 clauses,
+                assignments,
                 initial_literal_count,
                 DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize,
             );
             let jw = choose_literal(
                 clauses,
+                assignments,
                 initial_literal_count,
                 DpllBranchingHeuristic::JeroslawWang,
             );

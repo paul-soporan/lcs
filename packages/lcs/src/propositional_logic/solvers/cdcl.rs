@@ -7,6 +7,7 @@ use std::{
 use colored::Colorize;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
+use rand::Rng;
 use strum::EnumIter;
 
 use crate::{
@@ -64,7 +65,11 @@ impl SolverResult for CdclResult {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum CdclBranchingHeuristic {
-    First,
+    Ordered,
+    Random,
+    MaxOccurrences,
+    MaxOccurrencesMinSize,
+    MaxOccurrencesAndComplementMaxOccurrencesMinSize,
     JeroslawWang,
     ChaffVsids,
     MiniSatVsids,
@@ -76,7 +81,13 @@ impl Display for CdclBranchingHeuristic {
             f,
             "{}",
             match self {
-                CdclBranchingHeuristic::First => "first",
+                CdclBranchingHeuristic::Ordered => "first",
+                CdclBranchingHeuristic::Random => "random",
+                CdclBranchingHeuristic::MaxOccurrences => "maxo",
+                CdclBranchingHeuristic::MaxOccurrencesMinSize => "moms",
+                CdclBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
+                    "mams"
+                }
                 CdclBranchingHeuristic::JeroslawWang => "jw",
                 CdclBranchingHeuristic::ChaffVsids => "chaff-vsids",
                 CdclBranchingHeuristic::MiniSatVsids => "minisat-vsids",
@@ -614,7 +625,7 @@ impl CdclEngine {
 
     fn choose_literal(&self) -> IntLiteral {
         match self.branching_heuristic {
-            CdclBranchingHeuristic::First => {
+            CdclBranchingHeuristic::Ordered => {
                 let literal = (1..=self.initial_literal_count as i32)
                     .find_map(|i| {
                         let literal = IntLiteral::new(i);
@@ -630,6 +641,185 @@ impl CdclEngine {
                     .unwrap();
 
                 literal
+            }
+
+            CdclBranchingHeuristic::Random => {
+                // TODO: Initialize the random number generator once and reuse it.
+                let mut rng = rand::rng();
+
+                let unassigned_literals = (1..=self.initial_literal_count as i32)
+                    .filter_map(|i| {
+                        let literal = IntLiteral::new(i);
+                        if self.assignments.contains(&literal)
+                            || self.assignments.contains(&literal.complement())
+                        {
+                            None
+                        } else {
+                            Some(literal)
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let random_literal_index = rng.random_range(..unassigned_literals.len());
+                let random_literal = unassigned_literals[random_literal_index];
+
+                if rng.random_bool(0.5) {
+                    random_literal
+                } else {
+                    random_literal.complement()
+                }
+            }
+
+            CdclBranchingHeuristic::MaxOccurrences => {
+                let mut occurrences = vec![(0, 0); self.initial_literal_count];
+
+                let mut max_count = 0;
+                'outer: for clause in &self.clauses {
+                    let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
+
+                    for literal in &clause.clause.0 {
+                        if self.assignments.contains(literal) {
+                            continue 'outer;
+                        }
+
+                        if self.assignments.contains(&literal.complement()) {
+                            continue;
+                        }
+
+                        unset_literals.push(literal);
+                    }
+
+                    for literal in unset_literals.iter() {
+                        let value = (literal.abs_value().get() - 1) as usize;
+
+                        if literal.is_positive() {
+                            occurrences[value].0 += 1;
+                            max_count = max_count.max(occurrences[value].0);
+                        } else {
+                            occurrences[value].1 += 1;
+                            max_count = max_count.max(occurrences[value].1);
+                        }
+                    }
+                }
+
+                choose_max_score((max_count, occurrences))
+            }
+
+            CdclBranchingHeuristic::MaxOccurrencesMinSize => {
+                let mut minimum_clause_size = usize::MAX;
+                let mut minimum_size_clauses = Vec::new();
+
+                'outer: for clause in &self.clauses {
+                    let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
+
+                    for literal in &clause.clause.0 {
+                        if self.assignments.contains(literal) {
+                            continue 'outer;
+                        }
+
+                        if self.assignments.contains(&literal.complement()) {
+                            continue;
+                        }
+
+                        unset_literals.push(literal);
+                    }
+
+                    if unset_literals.len() < minimum_clause_size {
+                        minimum_clause_size = unset_literals.len();
+
+                        minimum_size_clauses.clear();
+                        minimum_size_clauses.push(unset_literals);
+                    } else if unset_literals.len() == minimum_clause_size {
+                        minimum_size_clauses.push(unset_literals);
+                    }
+                }
+
+                let mut occurrences = vec![(0, 0); self.initial_literal_count];
+
+                let mut max_count = 0;
+                for clause in minimum_size_clauses {
+                    for literal in clause {
+                        let value = (literal.abs_value().get() - 1) as usize;
+
+                        if literal.is_positive() {
+                            occurrences[value].0 += 1;
+                            max_count = max_count.max(occurrences[value].0);
+                        } else {
+                            occurrences[value].1 += 1;
+                            max_count = max_count.max(occurrences[value].1);
+                        }
+                    }
+                }
+
+                choose_max_score((max_count, occurrences))
+            }
+
+            CdclBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
+                let mut scores = vec![(0, 0); self.initial_literal_count];
+
+                let mut clauses = Vec::with_capacity(self.clauses.len());
+
+                let mut max_score = 0;
+                'outer: for clause in &self.clauses {
+                    let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
+
+                    for literal in &clause.clause.0 {
+                        if self.assignments.contains(literal) {
+                            continue 'outer;
+                        }
+
+                        if self.assignments.contains(&literal.complement()) {
+                            continue;
+                        }
+
+                        unset_literals.push(literal);
+                    }
+
+                    for literal in unset_literals.iter() {
+                        let value = (literal.abs_value().get() - 1) as usize;
+
+                        if literal.is_positive() {
+                            scores[value].0 += 1;
+                            max_score = max_score.max(scores[value].0);
+                        } else {
+                            scores[value].1 += 1;
+                            max_score = max_score.max(scores[value].1);
+                        }
+                    }
+
+                    clauses.push(unset_literals);
+                }
+
+                let mut minimum_clause_size = usize::MAX;
+                let mut minimum_size_clauses = Vec::new();
+
+                for clause in &clauses {
+                    if clause.len() < minimum_clause_size {
+                        minimum_clause_size = clause.len();
+
+                        minimum_size_clauses.clear();
+                        minimum_size_clauses.push(clause);
+                    } else if clause.len() == minimum_clause_size {
+                        minimum_size_clauses.push(clause);
+                    }
+                }
+
+                let mut max_score = 0;
+                for clause in minimum_size_clauses {
+                    for literal in clause {
+                        let value = (literal.abs_value().get() - 1) as usize;
+
+                        if literal.is_positive() {
+                            scores[value].1 += 1;
+                            max_score = max_score.max(scores[value].1);
+                        } else {
+                            scores[value].0 += 1;
+                            max_score = max_score.max(scores[value].0);
+                        }
+                    }
+                }
+
+                choose_max_score((max_score, scores))
             }
 
             CdclBranchingHeuristic::JeroslawWang => {
