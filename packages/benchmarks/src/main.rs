@@ -11,7 +11,9 @@ use std::{
 
 use average::{Estimate, Mean};
 use fork::{fork, waitpid, Fork};
-use lcs::propositional_logic::solvers::cdcl::{CdclBranchingHeuristic, CdclSolver};
+use lcs::propositional_logic::solvers::cdcl::{
+    CdclBranchingHeuristic, CdclRestartStrategy, CdclSolver,
+};
 use lcs::{
     explanation::DiscardedExplanation,
     propositional_logic::{
@@ -189,7 +191,7 @@ fn bench_file(file: &DirEntry, expected_result: Option<bool>) -> (&Path, serde_j
         let config = BenchConfig {
             path: file.path().to_path_buf(),
             expected_result,
-            get_solver: &|| CdclSolver::new(heuristic),
+            get_solver: &|| CdclSolver::new(heuristic, CdclRestartStrategy::None),
         };
 
         (

@@ -43,6 +43,10 @@ impl CdclResult {
     pub fn propagation_count(&self) -> usize {
         self.engine.propagation_count
     }
+
+    pub fn restart_count(&self) -> usize {
+        self.engine.restart_count
+    }
 }
 
 impl SolverResult for CdclResult {
@@ -75,6 +79,14 @@ pub enum CdclBranchingHeuristic {
     MiniSatVsids,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
+pub enum CdclRestartStrategy {
+    None,
+    Luby,
+}
+
+const LUBY_UNIT: usize = 32;
+
 impl Display for CdclBranchingHeuristic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -99,12 +111,17 @@ impl Display for CdclBranchingHeuristic {
 #[derive(Debug)]
 pub struct CdclSolver {
     branching_heuristic: CdclBranchingHeuristic,
+    restart_strategy: CdclRestartStrategy,
 }
 
 impl CdclSolver {
-    pub fn new(branching_heuristic: CdclBranchingHeuristic) -> Self {
+    pub fn new(
+        branching_heuristic: CdclBranchingHeuristic,
+        restart_strategy: CdclRestartStrategy,
+    ) -> Self {
         Self {
             branching_heuristic,
+            restart_strategy,
         }
     }
 }
@@ -113,7 +130,8 @@ impl Solve for CdclSolver {
     type Result = CdclResult;
 
     fn solve(&self, clause_set: ClauseSet, explanation: &mut impl Explain) -> CdclResult {
-        let mut engine = CdclEngine::new(clause_set, self.branching_heuristic);
+        let mut engine =
+            CdclEngine::new(clause_set, self.branching_heuristic, self.restart_strategy);
         let value = engine.apply_cdcl(explanation);
 
         CdclResult {
@@ -139,16 +157,23 @@ struct AssignmentEntry {
 
 #[derive(Debug)]
 struct CdclEngine {
+    branching_heuristic: CdclBranchingHeuristic,
+    restart_strategy: CdclRestartStrategy,
+    initial_literal_count: usize,
+
     // For CDCL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
     clauses: Vec<WatchedClause>,
     watchers: IntMap<IntLiteral, IntSet<usize>>,
+
     decision_level: usize,
     assignments: IntSet<IntLiteral>,
     unit_propagate: IntSet<IntLiteral>,
     assignment_stack: Vec<AssignmentEntry>,
     variable_levels: Vec<usize>,
-    branching_heuristic: CdclBranchingHeuristic,
-    initial_literal_count: usize,
+
+    conflict_limit: usize,
+    current_conflict_count: usize,
+    luby_sequence: Vec<usize>,
 
     activity_scores: Vec<(f32, f32)>,
 
@@ -156,13 +181,23 @@ struct CdclEngine {
     decision_count: usize,
     conflict_count: usize,
     propagation_count: usize,
+    restart_count: usize,
 }
 
 impl CdclEngine {
-    fn new(clause_set: ClauseSet, branching_heuristic: CdclBranchingHeuristic) -> Self {
+    fn new(
+        clause_set: ClauseSet,
+        branching_heuristic: CdclBranchingHeuristic,
+        restart_strategy: CdclRestartStrategy,
+    ) -> Self {
         let mut engine = Self {
+            branching_heuristic,
+            restart_strategy,
+            initial_literal_count: clause_set.variable_count,
+
             clauses: Vec::with_capacity(clause_set.clauses.len()),
             watchers: IntMap::default(),
+
             decision_level: 0,
             assignments: IntSet::with_capacity_and_hasher(
                 clause_set.variable_count,
@@ -174,8 +209,18 @@ impl CdclEngine {
             ),
             assignment_stack: Vec::with_capacity(clause_set.variable_count),
             variable_levels: vec![0; clause_set.variable_count],
-            initial_literal_count: clause_set.variable_count,
-            branching_heuristic,
+
+            conflict_limit: if restart_strategy == CdclRestartStrategy::Luby {
+                LUBY_UNIT
+            } else {
+                usize::MAX
+            },
+            current_conflict_count: 0,
+            luby_sequence: if restart_strategy == CdclRestartStrategy::Luby {
+                vec![1]
+            } else {
+                Vec::new()
+            },
 
             activity_scores: if matches!(
                 branching_heuristic,
@@ -189,6 +234,7 @@ impl CdclEngine {
             decision_count: 0,
             conflict_count: 0,
             propagation_count: 0,
+            restart_count: 0,
         };
 
         clause_set.clauses.into_iter().for_each(|clause| {
@@ -565,7 +611,7 @@ impl CdclEngine {
                     });
                 }
 
-                let backjump_level = learned_clause
+                let backtrack_level = learned_clause
                     .0
                     .iter()
                     .map(|literal| self.variable_levels[literal.abs_value().get() as usize - 1])
@@ -573,12 +619,12 @@ impl CdclEngine {
                     .max()
                     .unwrap_or(0);
 
-                (learned_clause, backjump_level)
+                (learned_clause, backtrack_level)
             },
         )
     }
 
-    fn backjump(&mut self, target_level: usize, explanation: &mut impl Explain) {
+    fn backtrack(&mut self, target_level: usize, explanation: &mut impl Explain) {
         explanation.with_subexplanation(
             || format!("Backjumping to decision level {}", target_level),
             |explanation| {
@@ -887,24 +933,39 @@ impl CdclEngine {
         }
     }
 
+    fn should_restart(&mut self) -> bool {
+        if self.current_conflict_count < self.conflict_limit {
+            return false;
+        }
+
+        match self.restart_strategy {
+            CdclRestartStrategy::None => false,
+            CdclRestartStrategy::Luby => {
+                let i = self.restart_count + 2;
+                let next_luby_number = if i & (i + 1) == 0 {
+                    (i + 1) / 2
+                } else {
+                    let t = i.ilog2() as usize;
+                    self.luby_sequence[i - (1 << t)]
+                };
+
+                self.luby_sequence.push(next_luby_number);
+                self.conflict_limit = LUBY_UNIT * next_luby_number;
+
+                true
+            }
+        }
+    }
+
     fn apply_cdcl(&mut self, explanation: &mut impl Explain) -> bool {
         let result = explanation.with_subexplanation(
             || "Applying the CDCL algorithm",
             |explanation| {
-
-                // let unit_literal = self
-                // .clauses
-                // .iter()
-                // .filter(|clause| clause.clause.0.len() == 1)
-                // .map(|clause| clause.clause.0.iter().next().unwrap())
-                // .next()
-                // .copied();
-                // self.unit_propagate.insert();
-
+                // TODO: Preprocess the clause set.
                 loop {
                     let explanation = explanation.subexplanation(|| "CDCL step");
 
-                    let conflict_clause = self.unit_propagation( explanation);
+                    let conflict_clause = self.unit_propagation(explanation);
 
                     explanation.with_subexplanation(
                         || {
@@ -933,6 +994,7 @@ impl CdclEngine {
                     match conflict_clause {
                         Some(conflict_clause) => {
                             self.conflict_count += 1;
+                            self.current_conflict_count += 1;
 
                             if self.decision_level == 0 {
                                 explanation.step(|| {
@@ -952,7 +1014,7 @@ impl CdclEngine {
                                 )
                             });
 
-                            let (learned_clause, backjump_level) =
+                            let (learned_clause, backtrack_level) =
                                 self.analyze_conflict(conflict_clause, explanation);
 
                             explanation.step(|| {
@@ -962,7 +1024,7 @@ impl CdclEngine {
                                 )
                             });
 
-                            self.backjump(backjump_level, explanation);
+                            self.backtrack(backtrack_level, explanation);
 
                             if learned_clause.0.len() == 1 {
                                 let literal = learned_clause.0.iter().next().copied().unwrap();
@@ -982,6 +1044,17 @@ impl CdclEngine {
                                     return false;
                                 }
                             }
+
+                            if self.should_restart() {
+                                self.assignments.clear();
+                                self.assignment_stack.clear();
+                                self.unit_propagate.clear();
+                                self.variable_levels.iter_mut().for_each(|level| *level = 0);
+                                self.decision_level = 0;
+
+                                self.restart_count += 1;
+                                self.current_conflict_count = 0;
+                            }
                         }
 
                         None => {
@@ -995,21 +1068,6 @@ impl CdclEngine {
 
                                 return true;
                             }
-
-                            // let literal = (1..=self.initial_literal_count as i32)
-                            //     .find_map(|i| {
-                            //         let literal = IntLiteral::new(i);
-
-                            //         if !self.assignments.contains(&literal)
-                            //             && !self.assignments.contains(&literal.complement())
-                            //         {
-                            //             Some(literal)
-                            //         } else {
-                            //             None
-                            //         }
-                            //     })
-                            //     .unwrap();
-
 
                             let literal = self.choose_literal();
                             explanation.step(|| {
