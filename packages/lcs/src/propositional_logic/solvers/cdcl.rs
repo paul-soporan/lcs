@@ -1,6 +1,7 @@
 use std::{
     collections::{HashSet, VecDeque},
     fmt::Display,
+    ops::Neg,
 };
 
 use colored::Colorize;
@@ -17,7 +18,10 @@ use crate::{
     },
 };
 
-use super::solve::{Solve, SolverResult};
+use super::{
+    dpll::choose_max_score,
+    solve::{Solve, SolverResult},
+};
 
 #[derive(Debug)]
 pub struct CdclResult {
@@ -58,9 +62,12 @@ impl SolverResult for CdclResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum CdclBranchingHeuristic {
     First,
+    JeroslawWang,
+    ChaffVsids,
+    MiniSatVsids,
 }
 
 impl Display for CdclBranchingHeuristic {
@@ -70,6 +77,9 @@ impl Display for CdclBranchingHeuristic {
             "{}",
             match self {
                 CdclBranchingHeuristic::First => "first",
+                CdclBranchingHeuristic::JeroslawWang => "jw",
+                CdclBranchingHeuristic::ChaffVsids => "chaff-vsids",
+                CdclBranchingHeuristic::MiniSatVsids => "minisat-vsids",
             }
         )
     }
@@ -129,6 +139,8 @@ struct CdclEngine {
     branching_heuristic: CdclBranchingHeuristic,
     initial_literal_count: usize,
 
+    activity_scores: Vec<(f32, f32)>,
+
     // Stats
     decision_count: usize,
     conflict_count: usize,
@@ -153,6 +165,15 @@ impl CdclEngine {
             variable_levels: vec![0; clause_set.variable_count],
             initial_literal_count: clause_set.variable_count,
             branching_heuristic,
+
+            activity_scores: if matches!(
+                branching_heuristic,
+                CdclBranchingHeuristic::ChaffVsids | CdclBranchingHeuristic::MiniSatVsids
+            ) {
+                vec![(0.0, 0.0); clause_set.variable_count]
+            } else {
+                Vec::new()
+            },
 
             decision_count: 0,
             conflict_count: 0,
@@ -430,6 +451,18 @@ impl CdclEngine {
                         break;
                     }
 
+                    if self.branching_heuristic == CdclBranchingHeuristic::MiniSatVsids {
+                        learned_clause.0.iter().for_each(|literal| {
+                            let index = literal.abs_value().get() as usize - 1;
+
+                            if literal.is_positive() {
+                                self.activity_scores[index].0 += 1.0;
+                            } else {
+                                self.activity_scores[index].1 += 1.0;
+                            }
+                        });
+                    }
+
                     if learned_clause.0.contains(&assignment_entry.literal)
                         || learned_clause
                             .0
@@ -501,6 +534,26 @@ impl CdclEngine {
                     }
                 }
 
+                if matches!(
+                    self.branching_heuristic,
+                    CdclBranchingHeuristic::ChaffVsids | CdclBranchingHeuristic::MiniSatVsids
+                ) {
+                    learned_clause.0.iter().for_each(|literal| {
+                        let index = literal.abs_value().get() as usize - 1;
+
+                        if literal.is_positive() {
+                            self.activity_scores[index].0 += 1.0;
+                        } else {
+                            self.activity_scores[index].1 += 1.0;
+                        }
+                    });
+
+                    self.activity_scores.iter_mut().for_each(|score| {
+                        score.0 *= 0.95;
+                        score.1 *= 0.95;
+                    });
+                }
+
                 let backjump_level = learned_clause
                     .0
                     .iter()
@@ -557,6 +610,91 @@ impl CdclEngine {
                 self.decision_level = target_level;
             },
         );
+    }
+
+    fn choose_literal(&self) -> IntLiteral {
+        match self.branching_heuristic {
+            CdclBranchingHeuristic::First => {
+                let literal = (1..=self.initial_literal_count as i32)
+                    .find_map(|i| {
+                        let literal = IntLiteral::new(i);
+
+                        if !self.assignments.contains(&literal)
+                            && !self.assignments.contains(&literal.complement())
+                        {
+                            Some(literal)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+
+                literal
+            }
+
+            CdclBranchingHeuristic::JeroslawWang => {
+                let mut scores = vec![(0f32, 0f32); self.initial_literal_count];
+
+                let mut max_score = 0f32;
+                'outer: for clause in &self.clauses {
+                    let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
+
+                    for literal in &clause.clause.0 {
+                        if self.assignments.contains(literal) {
+                            continue 'outer;
+                        }
+
+                        if self.assignments.contains(&literal.complement()) {
+                            continue;
+                        }
+
+                        unset_literals.push(literal);
+                    }
+
+                    for literal in unset_literals.iter() {
+                        let value = (literal.abs_value().get() - 1) as usize;
+
+                        let delta = (unset_literals.len() as f32).neg().exp2();
+
+                        if literal.is_positive() {
+                            scores[value].0 += delta;
+                            max_score = max_score.max(scores[value].0);
+                        } else {
+                            scores[value].1 += delta;
+                            max_score = max_score.max(scores[value].1);
+                        }
+                    }
+                }
+
+                choose_max_score((max_score, scores))
+            }
+
+            CdclBranchingHeuristic::ChaffVsids | CdclBranchingHeuristic::MiniSatVsids => {
+                let mut max_score = -1.0;
+                let mut max_score_literal = None;
+                for (i, &score) in self.activity_scores.iter().enumerate() {
+                    let literal = IntLiteral::new(i as i32 + 1);
+
+                    if self.assignments.contains(&literal)
+                        || self.assignments.contains(&literal.complement())
+                    {
+                        continue;
+                    }
+
+                    if max_score < score.0 {
+                        max_score = score.0;
+                        max_score_literal = Some(literal);
+                    }
+
+                    if max_score < score.1 {
+                        max_score = score.1;
+                        max_score_literal = Some(literal.complement());
+                    }
+                }
+
+                max_score_literal.unwrap()
+            }
+        }
     }
 
     fn apply_cdcl(&mut self, explanation: &mut impl Explain) -> bool {
@@ -634,8 +772,9 @@ impl CdclEngine {
                                 )
                             });
 
+                            self.backjump(backjump_level, explanation);
+
                             if learned_clause.0.len() == 1 {
-                                self.backjump(backjump_level, explanation);
                                 let literal = learned_clause.0.iter().next().copied().unwrap();
 
                                 self.assignments.insert(literal);
@@ -649,7 +788,6 @@ impl CdclEngine {
                                     literal,
                                 );
                             } else {
-                                self.backjump(backjump_level, explanation);
                                 if !self.add_clause(learned_clause) {
                                     return false;
                                 }
@@ -668,33 +806,30 @@ impl CdclEngine {
                                 return true;
                             }
 
-                            let literal = (1..=self.initial_literal_count as i32)
-                                .find_map(|i| {
-                                    let literal = IntLiteral::new(i);
+                            // let literal = (1..=self.initial_literal_count as i32)
+                            //     .find_map(|i| {
+                            //         let literal = IntLiteral::new(i);
 
-                                    if !self.assignments.contains(&literal)
-                                        && !self.assignments.contains(&literal.complement())
-                                    {
-                                        Some(literal)
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .unwrap();
+                            //         if !self.assignments.contains(&literal)
+                            //             && !self.assignments.contains(&literal.complement())
+                            //         {
+                            //             Some(literal)
+                            //         } else {
+                            //             None
+                            //         }
+                            //     })
+                            //     .unwrap();
 
-                            self.decision_count += 1;
 
-                            // let literal = choose_literal(
-                            //     &self.clauses,
-                            //     self.initial_literal_count,
-                            //     self.branching_heuristic,
-                            // );
+                            let literal = self.choose_literal();
                             explanation.step(|| {
                                 format!(
                                     "Choosing {} to add to assignment",
                                     literal.to_string().green().markdown()
                                 )
                             });
+
+                            self.decision_count += 1;
 
                             self.decision_level += 1;
 

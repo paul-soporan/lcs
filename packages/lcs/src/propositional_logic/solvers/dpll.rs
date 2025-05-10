@@ -315,8 +315,6 @@ pub(super) fn choose_literal(
     initial_literal_count: usize,
     branching_heuristic: DpllBranchingHeuristic,
 ) -> IntLiteral {
-    type Scores<T> = (T, Vec<(T, T)>);
-
     let maxo = |clauses: &[&Clause]| {
         let mut max_count = 0;
         let mut occurrences = vec![(0, 0); initial_literal_count];
@@ -355,20 +353,6 @@ pub(super) fn choose_literal(
 
         maxo(&minimum_size_clauses)
     };
-
-    fn choose_max_score<T: PartialEq>((max_count, occurrences): Scores<T>) -> IntLiteral {
-        for (i, count) in occurrences.into_iter().enumerate() {
-            if count.0 == max_count {
-                return IntLiteral::new((i + 1) as i32);
-            }
-            if count.1 == max_count {
-                return IntLiteral::new(-((i + 1) as i32));
-            }
-        }
-
-        // There will always be at least one clause with at least one literal.
-        unreachable!()
-    }
 
     let count_unit_propagations = |literal: IntLiteral, greedy: bool| {
         let mut literals = IntSet::default();
@@ -523,4 +507,20 @@ pub(super) fn choose_literal(
             best_literal.unwrap()
         }
     }
+}
+
+pub(super) type Scores<T> = (T, Vec<(T, T)>);
+
+pub(super) fn choose_max_score<T: PartialEq>((max_count, occurrences): Scores<T>) -> IntLiteral {
+    for (i, count) in occurrences.into_iter().enumerate() {
+        if count.0 == max_count {
+            return IntLiteral::new((i + 1) as i32);
+        }
+        if count.1 == max_count {
+            return IntLiteral::new(-((i + 1) as i32));
+        }
+    }
+
+    // There will always be at least one clause with at least one literal.
+    unreachable!()
 }
