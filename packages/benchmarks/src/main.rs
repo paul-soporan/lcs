@@ -78,12 +78,13 @@ struct BenchConfig<'a, T: Solve> {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-struct BenchResult {
+struct BenchResult<T> {
     mean_time: f64,
     max_memory_usage: usize,
+    stats: T,
 }
 
-fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
+fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult<<T::Result as SolverResult>::Stats> {
     let data = std::fs::read_to_string(&config.path).unwrap();
     let clause_set = data.parse::<ClauseSet>().unwrap();
 
@@ -112,6 +113,8 @@ fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
         }
     });
 
+    let mut stats = None;
+
     for _ in 0..RUN_COUNT {
         let instant = Instant::now();
 
@@ -125,6 +128,8 @@ fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
         if let Some(expected_result) = config.expected_result {
             assert_eq!(result.value(), expected_result);
         }
+
+        stats = Some(result.stats());
     }
 
     canceller.cancel();
@@ -133,10 +138,13 @@ fn bench<T: Solve>(config: &BenchConfig<T>) -> BenchResult {
     BenchResult {
         mean_time: estimator.mean(),
         max_memory_usage,
+        stats: stats.unwrap(),
     }
 }
 
-fn bench_process<T: Solve>(config: &BenchConfig<T>) -> Option<BenchResult> {
+fn bench_process<T: Solve>(
+    config: &BenchConfig<T>,
+) -> Option<BenchResult<<T::Result as SolverResult>::Stats>> {
     let (mut reader, writer) = pipe().expect("Failed to create pipe");
 
     match fork() {

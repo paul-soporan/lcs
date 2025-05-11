@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 
 use colored::Colorize;
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexMap;
 use nohash_hasher::IntSet;
 use replace_with::replace_with_or_abort;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     explanation::Explain,
@@ -26,7 +27,12 @@ pub struct DpResult {
     engine: DpEngine,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DpStats {}
+
 impl SolverResult for DpResult {
+    type Stats = DpStats;
+
     fn value(&self) -> bool {
         self.value
     }
@@ -41,6 +47,10 @@ impl SolverResult for DpResult {
         } else {
             None
         }
+    }
+
+    fn stats(&self) -> Self::Stats {
+        DpStats {}
     }
 }
 

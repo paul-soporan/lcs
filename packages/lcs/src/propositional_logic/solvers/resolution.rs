@@ -19,12 +19,18 @@ pub struct ResolutionResult {
 }
 
 impl SolverResult for ResolutionResult {
+    type Stats = ();
+
     fn value(&self) -> bool {
         self.value
     }
 
     fn flip_value(&mut self) {
         self.value = !self.value;
+    }
+
+    fn stats(&self) -> Self::Stats {
+        unimplemented!()
     }
 
     fn build_interpretation(&self, _: &mut impl Explain) -> Option<Interpretation> {

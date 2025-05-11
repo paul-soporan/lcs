@@ -341,6 +341,7 @@ dependencies = [
  "ordermap",
  "rand",
  "replace_with",
+ "serde",
  "strum",
  "termtree",
  "unlatex",

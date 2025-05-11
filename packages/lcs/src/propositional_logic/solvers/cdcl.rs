@@ -8,6 +8,7 @@ use colored::Colorize;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
 use crate::{
@@ -31,31 +32,32 @@ pub struct CdclResult {
     engine: CdclEngine,
 }
 
-impl CdclResult {
-    pub fn decision_count(&self) -> usize {
-        self.engine.decision_count
-    }
-
-    pub fn conflict_count(&self) -> usize {
-        self.engine.conflict_count
-    }
-
-    pub fn propagation_count(&self) -> usize {
-        self.engine.propagation_count
-    }
-
-    pub fn restart_count(&self) -> usize {
-        self.engine.restart_count
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CdclStats {
+    pub decision_count: usize,
+    pub conflict_count: usize,
+    pub propagation_count: usize,
+    pub restart_count: usize,
 }
 
 impl SolverResult for CdclResult {
+    type Stats = CdclStats;
+
     fn value(&self) -> bool {
         self.value
     }
 
     fn flip_value(&mut self) {
         self.value = !self.value;
+    }
+
+    fn stats(&self) -> Self::Stats {
+        CdclStats {
+            decision_count: self.engine.decision_count,
+            conflict_count: self.engine.conflict_count,
+            propagation_count: self.engine.propagation_count,
+            restart_count: self.engine.restart_count,
+        }
     }
 
     fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation> {
@@ -669,8 +671,8 @@ impl CdclEngine {
         );
     }
 
-    fn choose_literal(&self) -> IntLiteral {
-        match self.branching_heuristic {
+    fn choose_literal(&self, branching_heuristic: CdclBranchingHeuristic) -> IntLiteral {
+        match branching_heuristic {
             CdclBranchingHeuristic::Ordered => {
                 let literal = (1..=self.initial_literal_count as i32)
                     .find_map(|i| {
@@ -719,7 +721,7 @@ impl CdclEngine {
             CdclBranchingHeuristic::MaxOccurrences => {
                 let mut occurrences = vec![(0, 0); self.initial_literal_count];
 
-                let mut max_count = 0;
+                let mut max_count = -1;
                 'outer: for clause in &self.clauses {
                     let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
 
@@ -749,6 +751,7 @@ impl CdclEngine {
                 }
 
                 choose_max_score((max_count, occurrences))
+                    .unwrap_or_else(|| self.choose_literal(CdclBranchingHeuristic::Ordered))
             }
 
             CdclBranchingHeuristic::MaxOccurrencesMinSize => {
@@ -782,7 +785,7 @@ impl CdclEngine {
 
                 let mut occurrences = vec![(0, 0); self.initial_literal_count];
 
-                let mut max_count = 0;
+                let mut max_count = -1;
                 for clause in minimum_size_clauses {
                     for literal in clause {
                         let value = (literal.abs_value().get() - 1) as usize;
@@ -798,6 +801,7 @@ impl CdclEngine {
                 }
 
                 choose_max_score((max_count, occurrences))
+                    .unwrap_or_else(|| self.choose_literal(CdclBranchingHeuristic::MaxOccurrences))
             }
 
             CdclBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
@@ -805,7 +809,6 @@ impl CdclEngine {
 
                 let mut clauses = Vec::with_capacity(self.clauses.len());
 
-                let mut max_score = 0;
                 'outer: for clause in &self.clauses {
                     let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
 
@@ -826,10 +829,8 @@ impl CdclEngine {
 
                         if literal.is_positive() {
                             scores[value].0 += 1;
-                            max_score = max_score.max(scores[value].0);
                         } else {
                             scores[value].1 += 1;
-                            max_score = max_score.max(scores[value].1);
                         }
                     }
 
@@ -850,7 +851,7 @@ impl CdclEngine {
                     }
                 }
 
-                let mut max_score = 0;
+                let mut max_score = -1;
                 for clause in minimum_size_clauses {
                     for literal in clause {
                         let value = (literal.abs_value().get() - 1) as usize;
@@ -865,13 +866,15 @@ impl CdclEngine {
                     }
                 }
 
-                choose_max_score((max_score, scores))
+                choose_max_score((max_score, scores)).unwrap_or_else(|| {
+                    self.choose_literal(CdclBranchingHeuristic::MaxOccurrencesMinSize)
+                })
             }
 
             CdclBranchingHeuristic::JeroslawWang => {
                 let mut scores = vec![(0f32, 0f32); self.initial_literal_count];
 
-                let mut max_score = 0f32;
+                let mut max_score = -1f32;
                 'outer: for clause in &self.clauses {
                     let mut unset_literals = Vec::with_capacity(clause.clause.0.len());
 
@@ -902,7 +905,9 @@ impl CdclEngine {
                     }
                 }
 
-                choose_max_score((max_score, scores))
+                choose_max_score((max_score, scores)).unwrap_or_else(|| {
+                    self.choose_literal(CdclBranchingHeuristic::MaxOccurrencesMinSize)
+                })
             }
 
             CdclBranchingHeuristic::ChaffVsids | CdclBranchingHeuristic::MiniSatVsids => {
@@ -1069,7 +1074,7 @@ impl CdclEngine {
                                 return true;
                             }
 
-                            let literal = self.choose_literal();
+                            let literal = self.choose_literal(self.branching_heuristic);
                             explanation.step(|| {
                                 format!(
                                     "Choosing {} to add to assignment",

@@ -3,6 +3,7 @@ use std::{fmt::Display, ops::Neg};
 use colored::Colorize;
 use nohash_hasher::IntSet;
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use strum::EnumIter;
 
 use crate::{
@@ -26,19 +27,30 @@ pub struct DpllResult {
     engine: DpllEngine,
 }
 
-impl DpllResult {
-    pub fn decision_count(&self) -> usize {
-        self.engine.decision_count
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DpllStats {
+    pub decision_count: usize,
+    pub unit_propagation_count: usize,
+    pub pure_literal_count: usize,
 }
 
 impl SolverResult for DpllResult {
+    type Stats = DpllStats;
+
     fn value(&self) -> bool {
         self.value
     }
 
     fn flip_value(&mut self) {
         self.value = !self.value;
+    }
+
+    fn stats(&self) -> Self::Stats {
+        DpllStats {
+            decision_count: self.engine.decision_count,
+            unit_propagation_count: self.engine.unit_propagation_count,
+            pure_literal_count: self.engine.pure_literal_count,
+        }
     }
 
     fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation> {
@@ -115,25 +127,34 @@ impl Solve for DpllSolver {
 
 #[derive(Debug)]
 struct DpllEngine {
-    // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
-    clauses: Vec<Clause>,
     branching_heuristic: DpllBranchingHeuristic,
     initial_literal_count: usize,
+
+    // For DPLL, clauses are stored in a Vec - no need for fast search and no risk of duplicates.
+    clauses: Vec<Clause>,
     assignments: IntSet<IntLiteral>,
+
+    // Stats
     decision_count: usize,
+    unit_propagation_count: usize,
+    pure_literal_count: usize,
 }
 
 impl DpllEngine {
     fn new(clause_set: ClauseSet, branching_heuristic: DpllBranchingHeuristic) -> Self {
         Self {
-            clauses: Vec::from_iter(clause_set.clauses),
-            initial_literal_count: clause_set.variable_count,
             branching_heuristic,
+            initial_literal_count: clause_set.variable_count,
+
+            clauses: Vec::from_iter(clause_set.clauses),
             assignments: IntSet::with_capacity_and_hasher(
                 clause_set.variable_count,
                 Default::default(),
             ),
+
             decision_count: 0,
+            unit_propagation_count: 0,
+            pure_literal_count: 0,
         }
     }
 
@@ -226,8 +247,13 @@ impl DpllEngine {
                     },
                 );
 
+                let assignment_count = self.assignments.len();
+
                 let conflicting_literal =
                     apply_one_literal_rule(&mut self.clauses, &mut self.assignments, explanation);
+
+                self.unit_propagation_count += self.assignments.len() - assignment_count;
+
                 if conflicting_literal.is_some() {
                     explanation.step(|| {
                         format!(
@@ -257,6 +283,7 @@ impl DpllEngine {
                     literal_count,
                     explanation,
                 ) {
+                    self.pure_literal_count += 1;
                     continue;
                 }
 
@@ -435,9 +462,9 @@ pub(super) fn choose_literal(
             }
         }
         DpllBranchingHeuristic::MaxOccurrences => {
-            choose_max_score(maxo(&clauses.iter().collect::<Vec<_>>()))
+            choose_max_score(maxo(&clauses.iter().collect::<Vec<_>>())).unwrap()
         }
-        DpllBranchingHeuristic::MaxOccurrencesMinSize => choose_max_score(moms(&clauses)),
+        DpllBranchingHeuristic::MaxOccurrencesMinSize => choose_max_score(moms(&clauses)).unwrap(),
         DpllBranchingHeuristic::MaxOccurrencesAndComplementMaxOccurrencesMinSize => {
             let (_, mut mams) = maxo(&clauses.iter().collect::<Vec<_>>());
             let (_, moms) = moms(&clauses);
@@ -450,7 +477,7 @@ pub(super) fn choose_literal(
                 max_score = max_score.max(count.0).max(count.1);
             }
 
-            choose_max_score((max_score, mams))
+            choose_max_score((max_score, mams)).unwrap()
         }
         DpllBranchingHeuristic::JeroslawWang => {
             let mut scores = vec![(0f32, 0f32); initial_literal_count];
@@ -472,7 +499,7 @@ pub(super) fn choose_literal(
                 }
             }
 
-            choose_max_score((max_score, scores))
+            choose_max_score((max_score, scores)).unwrap()
         }
         DpllBranchingHeuristic::MaxUnitPropagations => max_unit_propagations(false),
         DpllBranchingHeuristic::GreedyMaxUnitPropagations => max_unit_propagations(true),
@@ -526,16 +553,17 @@ pub(super) fn choose_literal(
 
 pub(super) type Scores<T> = (T, Vec<(T, T)>);
 
-pub(super) fn choose_max_score<T: PartialEq>((max_count, occurrences): Scores<T>) -> IntLiteral {
+pub(super) fn choose_max_score<T: PartialEq>(
+    (max_count, occurrences): Scores<T>,
+) -> Option<IntLiteral> {
     for (i, count) in occurrences.into_iter().enumerate() {
         if count.0 == max_count {
-            return IntLiteral::new((i + 1) as i32);
+            return Some(IntLiteral::new((i + 1) as i32));
         }
         if count.1 == max_count {
-            return IntLiteral::new(-((i + 1) as i32));
+            return Some(IntLiteral::new(-((i + 1) as i32)));
         }
     }
 
-    // There will always be at least one clause with at least one literal.
-    unreachable!()
+    None
 }

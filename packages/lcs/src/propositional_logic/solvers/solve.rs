@@ -10,11 +10,16 @@ use crate::{
 };
 use colored::Colorize;
 use indexmap::IndexSet;
+use serde::{Deserialize, Serialize};
 
 pub trait SolverResult {
+    type Stats: Serialize + for<'a> Deserialize<'a>;
+
     fn value(&self) -> bool;
 
     fn flip_value(&mut self);
+
+    fn stats(&self) -> Self::Stats;
 
     fn build_interpretation(&self, explanation: &mut impl Explain) -> Option<Interpretation>;
 }
