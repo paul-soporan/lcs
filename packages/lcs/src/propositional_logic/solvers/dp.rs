@@ -70,14 +70,14 @@ impl Solve for DpSolver {
 
 #[derive(Debug)]
 struct DpEngine {
-    clauses: IndexSet<Clause>,
+    clauses: BTreeSet<Clause>,
     assignments: IntSet<IntLiteral>,
 }
 
 impl DpEngine {
     fn new(clause_set: ClauseSet) -> Self {
         Self {
-            clauses: clause_set.clauses,
+            clauses: BTreeSet::from_iter(clause_set.clauses),
             assignments: IntSet::default(),
         }
     }
@@ -85,68 +85,75 @@ impl DpEngine {
     fn apply_dp(&mut self, explanation: &mut impl Explain) -> bool {
         let result = explanation.with_subexplanation(
             || "Applying the DP algorithm",
-            |explanation| loop {
-                let explanation = explanation.subexplanation(|| "DP step");
-
-                explanation.with_subexplanation(
-                    || "Current clauses",
-                    |explanation| {
-                        for (i, clause) in self.clauses.iter().enumerate() {
-                            explanation.step(|| {
-                                format!(
-                                    "{} {}",
-                                    format!("({})", i).to_string().magenta().markdown(),
-                                    clause.to_string().blue().markdown()
-                                )
-                            });
-                        }
-                    },
-                );
-
-                if self.clauses.is_empty() {
-                    explanation.step(|| {
-                        format!(
-                            "No clauses left, therefore the formula is {}",
-                            "satisfiable".green().markdown()
-                        )
-                    });
-                    return true;
-                }
-
-                for clause in &self.clauses {
-                    if clause.0.is_empty() {
-                        explanation.step(|| {
-                            format!(
-                                "Found an empty clause, therefore the formula is {}",
-                                "unsatisfiable".red().markdown()
-                            )
-                        });
-                        return false;
-                    }
-                }
-
-                let conflicting_literal =
-                    apply_one_literal_rule(&mut self.clauses, &mut self.assignments, explanation);
-
-                if conflicting_literal.is_some() {
+            |explanation| {
+                if self.clauses.contains(&Clause(Default::default())) {
                     explanation.step(|| {
                         format!(
                             "Found an empty clause, therefore the formula is {}",
                             "unsatisfiable".red().markdown()
                         )
                     });
-
                     return false;
                 }
 
-                if apply_pure_literal_rule(&mut self.clauses, &mut self.assignments, 0, explanation)
-                {
-                    continue;
-                }
+                loop {
+                    let explanation = explanation.subexplanation(|| "DP step");
 
-                match apply_resolution_step(&mut self.clauses, explanation) {
-                    Some(result) => return result,
-                    None => continue,
+                    explanation.with_subexplanation(
+                        || "Current clauses",
+                        |explanation| {
+                            for (i, clause) in self.clauses.iter().enumerate() {
+                                explanation.step(|| {
+                                    format!(
+                                        "{} {}",
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                        clause.to_string().blue().markdown()
+                                    )
+                                });
+                            }
+                        },
+                    );
+
+                    if self.clauses.is_empty() {
+                        explanation.step(|| {
+                            format!(
+                                "No clauses left, therefore the formula is {}",
+                                "satisfiable".green().markdown()
+                            )
+                        });
+                        return true;
+                    }
+
+                    let conflicting_literal = apply_one_literal_rule(
+                        &mut self.clauses,
+                        &mut self.assignments,
+                        explanation,
+                    );
+
+                    if conflicting_literal.is_some() {
+                        explanation.step(|| {
+                            format!(
+                                "Found an empty clause, therefore the formula is {}",
+                                "unsatisfiable".red().markdown()
+                            )
+                        });
+
+                        return false;
+                    }
+
+                    if apply_pure_literal_rule(
+                        &mut self.clauses,
+                        &mut self.assignments,
+                        0,
+                        explanation,
+                    ) {
+                        continue;
+                    }
+
+                    match apply_resolution_step(&mut self.clauses, explanation) {
+                        Some(result) => return result,
+                        None => continue,
+                    }
                 }
             },
         );

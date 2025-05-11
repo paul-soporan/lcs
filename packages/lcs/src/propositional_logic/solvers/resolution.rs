@@ -1,6 +1,6 @@
+use std::collections::BTreeSet;
+
 use colored::Colorize;
-use indexmap::IndexSet;
-use itertools::Itertools;
 
 use crate::{
     explanation::Explain,
@@ -54,35 +54,20 @@ impl Solve for ResolutionSolver {
 
 #[derive(Debug)]
 struct ResolutionEngine {
-    clauses: IndexSet<Clause>,
+    clauses: BTreeSet<Clause>,
 }
 
 impl ResolutionEngine {
     fn new(clause_set: ClauseSet) -> Self {
         Self {
-            clauses: clause_set.clauses,
+            clauses: BTreeSet::from_iter(clause_set.clauses),
         }
     }
 
     fn apply_resolution(&mut self, explanation: &mut impl Explain) -> bool {
         let result = explanation.with_subexplanation(
             || "Applying the resolution algorithm",
-            |explanation| loop {
-                explanation.with_subexplanation(
-                    || "Current clauses",
-                    |explanation| {
-                        for (i, clause) in self.clauses.iter().enumerate() {
-                            explanation.step(|| {
-                                format!(
-                                    "{} {}",
-                                    format!("({})", i).to_string().magenta().markdown(),
-                                    clause.to_string().blue().markdown()
-                                )
-                            });
-                        }
-                    },
-                );
-
+            |explanation| {
                 if self.clauses.is_empty() {
                     explanation.step(|| {
                         format!(
@@ -93,21 +78,36 @@ impl ResolutionEngine {
                     return true;
                 }
 
-                for clause in &self.clauses {
-                    if clause.0.is_empty() {
-                        explanation.step(|| {
-                            format!(
-                                "Found an empty clause, therefore the formula is {}",
-                                "unsatisfiable".red().markdown()
-                            )
-                        });
-                        return false;
-                    }
+                if self.clauses.contains(&Clause(Default::default())) {
+                    explanation.step(|| {
+                        format!(
+                            "Found an empty clause, therefore the formula is {}",
+                            "unsatisfiable".red().markdown()
+                        )
+                    });
+                    return false;
                 }
 
-                match apply_resolution_step(&mut self.clauses, explanation) {
-                    Some(result) => return result,
-                    None => continue,
+                loop {
+                    explanation.with_subexplanation(
+                        || "Current clauses",
+                        |explanation| {
+                            for (i, clause) in self.clauses.iter().enumerate() {
+                                explanation.step(|| {
+                                    format!(
+                                        "{} {}",
+                                        format!("({})", i).to_string().magenta().markdown(),
+                                        clause.to_string().blue().markdown()
+                                    )
+                                });
+                            }
+                        },
+                    );
+
+                    match apply_resolution_step(&mut self.clauses, explanation) {
+                        Some(result) => return result,
+                        None => continue,
+                    }
                 }
             },
         );
@@ -128,7 +128,7 @@ impl ResolutionEngine {
 }
 
 pub(super) fn apply_resolution_step(
-    clauses: &mut IndexSet<Clause>,
+    clauses: &mut BTreeSet<Clause>,
     explanation: &mut impl Explain,
 ) -> Option<bool> {
     explanation.with_subexplanation(
@@ -154,19 +154,14 @@ pub(super) fn apply_resolution_step(
 }
 
 fn find_new_resolvent(
-    clauses: &IndexSet<Clause>,
+    clauses: &BTreeSet<Clause>,
     explanation: &mut impl Explain,
 ) -> Option<Clause> {
     explanation.with_subexplanation(
         || "Attempting to find a new resolvent",
         |explanation| {
-            for (i, clause1) in clauses.iter().enumerate().sorted_by(|a, b| a.1.cmp(&b.1)) {
-                for (j, clause2) in clauses
-                    .iter()
-                    .skip(i + 1)
-                    .enumerate()
-                    .sorted_by(|a, b| a.1.cmp(&b.1))
-                {
+            for (i, clause1) in clauses.iter().enumerate() {
+                for (j, clause2) in clauses.iter().skip(i + 1).enumerate() {
                     'literals: for literal in &clause1.0 {
                         if clause2.0.contains(&literal.complement()) {
                             let resolvent = Clause(
