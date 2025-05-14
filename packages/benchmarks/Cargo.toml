@@ -4,6 +4,7 @@ edition = "2021"
 
 [dependencies]
 average = "0.16.0"
+clap = { version = "4.5.38", features = ["derive"] }
 fork = "0.2.0"
 lcs = { path = "../lcs" }
 memory-stats = "1.2.0"

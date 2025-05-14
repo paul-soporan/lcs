@@ -142,6 +142,7 @@ fn parse_dimacs_cnf(data: &str) -> Result<ClauseSet, String> {
     let mut clause_line_count = 0;
 
     for line in data.lines() {
+        let line = line.trim();
         if line.is_empty() || line.starts_with('c') || line == "%" || line == "0" {
             continue;
         }

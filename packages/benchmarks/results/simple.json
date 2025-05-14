@@ -1,0 +1,35 @@
+{
+  "simple": {
+    "example.cnf": {
+      "cdcl": {
+        "first": {
+          "max_memory_usage": 5021696,
+          "mean_time": 7.1822e-6,
+          "stats": {
+            "conflict_count": 1,
+            "decision_count": 3,
+            "propagation_count": 10,
+            "restart_count": 0
+          }
+        }
+      },
+      "dp": {
+        "max_memory_usage": 5013504,
+        "mean_time": 6.356e-6,
+        "stats": {}
+      },
+      "dpll": {
+        "first": {
+          "max_memory_usage": 5013504,
+          "mean_time": 3.654e-6,
+          "stats": {
+            "decision_count": 0,
+            "pure_literal_count": 3,
+            "unit_propagation_count": 0
+          }
+        }
+      },
+      "resolution": null
+    }
+  }
+}

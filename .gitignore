@@ -52,3 +52,7 @@ coverage
 *.tsbuildinfo
 
 .yarn/install-state.gz
+
+__pycache__
+
+!README.md

@@ -1,0 +1,773 @@
+{
+  "phole": {
+    "unsat": {
+      "pigeon-hole": {
+        "hole10.cnf": {
+          "cdcl": {
+            "chaff-vsids": {
+              "max_memory_usage": 40292352,
+              "mean_time": 22.6366479722,
+              "stats": {
+                "conflict_count": 56373,
+                "decision_count": 58590,
+                "propagation_count": 697099,
+                "restart_count": 0
+              }
+            },
+            "first": {
+              "max_memory_usage": 19296256,
+              "mean_time": 23.7015181924,
+              "stats": {
+                "conflict_count": 25323,
+                "decision_count": 25352,
+                "propagation_count": 642414,
+                "restart_count": 0
+              }
+            },
+            "jw": null,
+            "mams": null,
+            "maxo": null,
+            "minisat-vsids": null,
+            "moms": {
+              "max_memory_usage": 7372800,
+              "mean_time": 10.98475068,
+              "stats": {
+                "conflict_count": 4098,
+                "decision_count": 11520,
+                "propagation_count": 149869,
+                "restart_count": 0
+              }
+            },
+            "random": null
+          },
+          "cdcl_luby": {
+            "minisat-vsids": null
+          },
+          "dpll": {
+            "first": null,
+            "gup": null,
+            "jw": {
+              "max_memory_usage": 6950912,
+              "mean_time": 13.8701076554,
+              "stats": {
+                "decision_count": 3628799,
+                "pure_literal_count": 3117645,
+                "unit_propagation_count": 33221089
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5914624,
+              "mean_time": 14.6770387282,
+              "stats": {
+                "decision_count": 3628799,
+                "pure_literal_count": 3117645,
+                "unit_propagation_count": 33221089
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 6729728,
+              "mean_time": 13.5270215186,
+              "stats": {
+                "decision_count": 3628799,
+                "pure_literal_count": 3117645,
+                "unit_propagation_count": 33221089
+              }
+            },
+            "moms": {
+              "max_memory_usage": 6729728,
+              "mean_time": 14.2522414746,
+              "stats": {
+                "decision_count": 3628799,
+                "pure_literal_count": 3117645,
+                "unit_propagation_count": 33221089
+              }
+            },
+            "random": null,
+            "sup": null,
+            "up": null
+          }
+        },
+        "hole6.cnf": {
+          "cdcl": {
+            "chaff-vsids": {
+              "max_memory_usage": 5275648,
+              "mean_time": 0.0043916866,
+              "stats": {
+                "conflict_count": 340,
+                "decision_count": 367,
+                "propagation_count": 4634,
+                "restart_count": 0
+              }
+            },
+            "first": {
+              "max_memory_usage": 5316608,
+              "mean_time": 0.0089686954,
+              "stats": {
+                "conflict_count": 449,
+                "decision_count": 449,
+                "propagation_count": 5581,
+                "restart_count": 0
+              }
+            },
+            "jw": {
+              "max_memory_usage": 5890048,
+              "mean_time": 0.0809789964,
+              "stats": {
+                "conflict_count": 804,
+                "decision_count": 1147,
+                "propagation_count": 9706,
+                "restart_count": 0
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5414912,
+              "mean_time": 0.0110549894,
+              "stats": {
+                "conflict_count": 301,
+                "decision_count": 310,
+                "propagation_count": 4498,
+                "restart_count": 0
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 5267456,
+              "mean_time": 0.0117455006,
+              "stats": {
+                "conflict_count": 322,
+                "decision_count": 494,
+                "propagation_count": 4616,
+                "restart_count": 0
+              }
+            },
+            "minisat-vsids": {
+              "max_memory_usage": 5287936,
+              "mean_time": 0.0050008436,
+              "stats": {
+                "conflict_count": 371,
+                "decision_count": 389,
+                "propagation_count": 4697,
+                "restart_count": 0
+              }
+            },
+            "moms": {
+              "max_memory_usage": 5275648,
+              "mean_time": 0.0055042044000000005,
+              "stats": {
+                "conflict_count": 130,
+                "decision_count": 240,
+                "propagation_count": 2201,
+                "restart_count": 0
+              }
+            },
+            "random": {
+              "max_memory_usage": 6086656,
+              "mean_time": 0.0249927248,
+              "stats": {
+                "conflict_count": 1143,
+                "decision_count": 1368,
+                "propagation_count": 13181,
+                "restart_count": 0
+              }
+            }
+          },
+          "cdcl_luby": {
+            "minisat-vsids": {
+              "max_memory_usage": 5296128,
+              "mean_time": 0.005452820999999999,
+              "stats": {
+                "conflict_count": 378,
+                "decision_count": 412,
+                "propagation_count": 5516,
+                "restart_count": 6
+              }
+            }
+          },
+          "dpll": {
+            "first": {
+              "max_memory_usage": 5337088,
+              "mean_time": 0.0066422884,
+              "stats": {
+                "decision_count": 1679,
+                "pure_literal_count": 2773,
+                "unit_propagation_count": 13252
+              }
+            },
+            "gup": {
+              "max_memory_usage": 5537792,
+              "mean_time": 0.0308451856,
+              "stats": {
+                "decision_count": 721,
+                "pure_literal_count": 631,
+                "unit_propagation_count": 7838
+              }
+            },
+            "jw": {
+              "max_memory_usage": 5541888,
+              "mean_time": 0.0030590782,
+              "stats": {
+                "decision_count": 719,
+                "pure_literal_count": 615,
+                "unit_propagation_count": 6581
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5300224,
+              "mean_time": 0.0032536936,
+              "stats": {
+                "decision_count": 719,
+                "pure_literal_count": 615,
+                "unit_propagation_count": 6581
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 5328896,
+              "mean_time": 0.0028471252000000003,
+              "stats": {
+                "decision_count": 719,
+                "pure_literal_count": 615,
+                "unit_propagation_count": 6581
+              }
+            },
+            "moms": {
+              "max_memory_usage": 5341184,
+              "mean_time": 0.0029178422,
+              "stats": {
+                "decision_count": 719,
+                "pure_literal_count": 615,
+                "unit_propagation_count": 6581
+              }
+            },
+            "random": {
+              "max_memory_usage": 5505024,
+              "mean_time": 0.0057686218,
+              "stats": {
+                "decision_count": 954,
+                "pure_literal_count": 946,
+                "unit_propagation_count": 10496
+              }
+            },
+            "sup": {
+              "max_memory_usage": 5455872,
+              "mean_time": 0.004824352400000001,
+              "stats": {
+                "decision_count": 719,
+                "pure_literal_count": 615,
+                "unit_propagation_count": 6581
+              }
+            },
+            "up": {
+              "max_memory_usage": 5533696,
+              "mean_time": 0.0374474674,
+              "stats": {
+                "decision_count": 711,
+                "pure_literal_count": 631,
+                "unit_propagation_count": 8222
+              }
+            }
+          }
+        },
+        "hole7.cnf": {
+          "cdcl": {
+            "chaff-vsids": {
+              "max_memory_usage": 5935104,
+              "mean_time": 0.0320999576,
+              "stats": {
+                "conflict_count": 1347,
+                "decision_count": 1455,
+                "propagation_count": 18034,
+                "restart_count": 0
+              }
+            },
+            "first": {
+              "max_memory_usage": 5971968,
+              "mean_time": 0.06855355199999999,
+              "stats": {
+                "conflict_count": 1487,
+                "decision_count": 1486,
+                "propagation_count": 21855,
+                "restart_count": 0
+              }
+            },
+            "jw": {
+              "max_memory_usage": 7831552,
+              "mean_time": 3.2145148788,
+              "stats": {
+                "conflict_count": 5983,
+                "decision_count": 7695,
+                "propagation_count": 73979,
+                "restart_count": 0
+              }
+            },
+            "mams": {
+              "max_memory_usage": 6119424,
+              "mean_time": 0.0812248998,
+              "stats": {
+                "conflict_count": 952,
+                "decision_count": 971,
+                "propagation_count": 16782,
+                "restart_count": 0
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 5787648,
+              "mean_time": 0.0715654592,
+              "stats": {
+                "conflict_count": 979,
+                "decision_count": 1344,
+                "propagation_count": 15821,
+                "restart_count": 0
+              }
+            },
+            "minisat-vsids": {
+              "max_memory_usage": 5926912,
+              "mean_time": 0.0347235022,
+              "stats": {
+                "conflict_count": 1320,
+                "decision_count": 1354,
+                "propagation_count": 17773,
+                "restart_count": 0
+              }
+            },
+            "moms": {
+              "max_memory_usage": 5668864,
+              "mean_time": 0.0231605722,
+              "stats": {
+                "conflict_count": 322,
+                "decision_count": 672,
+                "propagation_count": 6775,
+                "restart_count": 0
+              }
+            },
+            "random": {
+              "max_memory_usage": 9461760,
+              "mean_time": 0.9373017066,
+              "stats": {
+                "conflict_count": 9583,
+                "decision_count": 11627,
+                "propagation_count": 110736,
+                "restart_count": 0
+              }
+            }
+          },
+          "cdcl_luby": {
+            "minisat-vsids": {
+              "max_memory_usage": 5984256,
+              "mean_time": 0.0370235804,
+              "stats": {
+                "conflict_count": 1425,
+                "decision_count": 1518,
+                "propagation_count": 20312,
+                "restart_count": 22
+              }
+            }
+          },
+          "dpll": {
+            "first": {
+              "max_memory_usage": 5689344,
+              "mean_time": 0.050479882,
+              "stats": {
+                "decision_count": 13439,
+                "pure_literal_count": 22233,
+                "unit_propagation_count": 105194
+              }
+            },
+            "gup": {
+              "max_memory_usage": 5595136,
+              "mean_time": 0.2340242938,
+              "stats": {
+                "decision_count": 5078,
+                "pure_literal_count": 4474,
+                "unit_propagation_count": 55688
+              }
+            },
+            "jw": {
+              "max_memory_usage": 5877760,
+              "mean_time": 0.0194687068,
+              "stats": {
+                "decision_count": 5039,
+                "pure_literal_count": 4326,
+                "unit_propagation_count": 46129
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5652480,
+              "mean_time": 0.020286104000000003,
+              "stats": {
+                "decision_count": 5039,
+                "pure_literal_count": 4326,
+                "unit_propagation_count": 46129
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 5664768,
+              "mean_time": 0.0200575704,
+              "stats": {
+                "decision_count": 5039,
+                "pure_literal_count": 4326,
+                "unit_propagation_count": 46129
+              }
+            },
+            "moms": {
+              "max_memory_usage": 5844992,
+              "mean_time": 0.019979213,
+              "stats": {
+                "decision_count": 5039,
+                "pure_literal_count": 4326,
+                "unit_propagation_count": 46129
+              }
+            },
+            "random": {
+              "max_memory_usage": 6131712,
+              "mean_time": 0.0419763248,
+              "stats": {
+                "decision_count": 6843,
+                "pure_literal_count": 6991,
+                "unit_propagation_count": 77060
+              }
+            },
+            "sup": {
+              "max_memory_usage": 5877760,
+              "mean_time": 0.034398559999999995,
+              "stats": {
+                "decision_count": 5039,
+                "pure_literal_count": 4326,
+                "unit_propagation_count": 46129
+              }
+            },
+            "up": {
+              "max_memory_usage": 5603328,
+              "mean_time": 0.27818783820000004,
+              "stats": {
+                "decision_count": 5023,
+                "pure_literal_count": 4473,
+                "unit_propagation_count": 58433
+              }
+            }
+          }
+        },
+        "hole8.cnf": {
+          "cdcl": {
+            "chaff-vsids": {
+              "max_memory_usage": 7098368,
+              "mean_time": 0.2020407852,
+              "stats": {
+                "conflict_count": 3867,
+                "decision_count": 4057,
+                "propagation_count": 52889,
+                "restart_count": 0
+              }
+            },
+            "first": {
+              "max_memory_usage": 6918144,
+              "mean_time": 0.4928348338,
+              "stats": {
+                "conflict_count": 3848,
+                "decision_count": 3854,
+                "propagation_count": 70895,
+                "restart_count": 0
+              }
+            },
+            "jw": null,
+            "mams": {
+              "max_memory_usage": 7098368,
+              "mean_time": 0.496929529,
+              "stats": {
+                "conflict_count": 2429,
+                "decision_count": 2481,
+                "propagation_count": 48859,
+                "restart_count": 0
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 6725632,
+              "mean_time": 0.6574435848,
+              "stats": {
+                "conflict_count": 3041,
+                "decision_count": 3860,
+                "propagation_count": 48252,
+                "restart_count": 0
+              }
+            },
+            "minisat-vsids": {
+              "max_memory_usage": 7872512,
+              "mean_time": 0.3517236242,
+              "stats": {
+                "conflict_count": 5585,
+                "decision_count": 5722,
+                "propagation_count": 66575,
+                "restart_count": 0
+              }
+            },
+            "moms": {
+              "max_memory_usage": 5926912,
+              "mean_time": 0.24848653119999997,
+              "stats": {
+                "conflict_count": 770,
+                "decision_count": 1792,
+                "propagation_count": 19783,
+                "restart_count": 0
+              }
+            },
+            "random": null
+          },
+          "cdcl_luby": {
+            "minisat-vsids": {
+              "max_memory_usage": 7897088,
+              "mean_time": 0.388516836,
+              "stats": {
+                "conflict_count": 5725,
+                "decision_count": 6077,
+                "propagation_count": 75436,
+                "restart_count": 62
+              }
+            }
+          },
+          "dpll": {
+            "first": {
+              "max_memory_usage": 5980160,
+              "mean_time": 0.4442881002,
+              "stats": {
+                "decision_count": 120959,
+                "pure_literal_count": 200161,
+                "unit_propagation_count": 916558
+              }
+            },
+            "gup": {
+              "max_memory_usage": 5693440,
+              "mean_time": 1.8719125892,
+              "stats": {
+                "decision_count": 40549,
+                "pure_literal_count": 35667,
+                "unit_propagation_count": 446223
+              }
+            },
+            "jw": {
+              "max_memory_usage": 6127616,
+              "mean_time": 0.1549412378,
+              "stats": {
+                "decision_count": 40319,
+                "pure_literal_count": 34636,
+                "unit_propagation_count": 369111
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5754880,
+              "mean_time": 0.161775479,
+              "stats": {
+                "decision_count": 40319,
+                "pure_literal_count": 34636,
+                "unit_propagation_count": 369111
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 5902336,
+              "mean_time": 0.1540355842,
+              "stats": {
+                "decision_count": 40319,
+                "pure_literal_count": 34636,
+                "unit_propagation_count": 369111
+              }
+            },
+            "moms": {
+              "max_memory_usage": 6041600,
+              "mean_time": 0.1583233766,
+              "stats": {
+                "decision_count": 40319,
+                "pure_literal_count": 34636,
+                "unit_propagation_count": 369111
+              }
+            },
+            "random": {
+              "max_memory_usage": 6365184,
+              "mean_time": 0.352691642,
+              "stats": {
+                "decision_count": 58459,
+                "pure_literal_count": 60703,
+                "unit_propagation_count": 676486
+              }
+            },
+            "sup": {
+              "max_memory_usage": 5996544,
+              "mean_time": 0.27584919399999996,
+              "stats": {
+                "decision_count": 40319,
+                "pure_literal_count": 34636,
+                "unit_propagation_count": 369111
+              }
+            },
+            "up": {
+              "max_memory_usage": 5697536,
+              "mean_time": 2.2573562598,
+              "stats": {
+                "decision_count": 40313,
+                "pure_literal_count": 35677,
+                "unit_propagation_count": 469896
+              }
+            }
+          }
+        },
+        "hole9.cnf": {
+          "cdcl": {
+            "chaff-vsids": {
+              "max_memory_usage": 13156352,
+              "mean_time": 2.4598588772,
+              "stats": {
+                "conflict_count": 16023,
+                "decision_count": 16630,
+                "propagation_count": 200914,
+                "restart_count": 0
+              }
+            },
+            "first": {
+              "max_memory_usage": 10108928,
+              "mean_time": 3.2796022832,
+              "stats": {
+                "conflict_count": 9798,
+                "decision_count": 9820,
+                "propagation_count": 215577,
+                "restart_count": 0
+              }
+            },
+            "jw": null,
+            "mams": {
+              "max_memory_usage": 10018816,
+              "mean_time": 3.9339761038,
+              "stats": {
+                "conflict_count": 6271,
+                "decision_count": 6510,
+                "propagation_count": 140371,
+                "restart_count": 0
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 9363456,
+              "mean_time": 5.374617033,
+              "stats": {
+                "conflict_count": 8673,
+                "decision_count": 10146,
+                "propagation_count": 141736,
+                "restart_count": 0
+              }
+            },
+            "minisat-vsids": {
+              "max_memory_usage": 17424384,
+              "mean_time": 4.9606028604,
+              "stats": {
+                "conflict_count": 24110,
+                "decision_count": 24703,
+                "propagation_count": 271902,
+                "restart_count": 0
+              }
+            },
+            "moms": {
+              "max_memory_usage": 6385664,
+              "mean_time": 1.769915092,
+              "stats": {
+                "conflict_count": 1794,
+                "decision_count": 4608,
+                "propagation_count": 55385,
+                "restart_count": 0
+              }
+            },
+            "random": null
+          },
+          "cdcl_luby": {
+            "minisat-vsids": {
+              "max_memory_usage": 17575936,
+              "mean_time": 4.180457272,
+              "stats": {
+                "conflict_count": 22764,
+                "decision_count": 24035,
+                "propagation_count": 283985,
+                "restart_count": 220
+              }
+            }
+          },
+          "dpll": {
+            "first": {
+              "max_memory_usage": 6406144,
+              "mean_time": 4.4790688412,
+              "stats": {
+                "decision_count": 1209599,
+                "pure_literal_count": 2001691,
+                "unit_propagation_count": 9457963
+              }
+            },
+            "gup": {
+              "max_memory_usage": 5849088,
+              "mean_time": 17.056159615200002,
+              "stats": {
+                "decision_count": 365755,
+                "pure_literal_count": 320951,
+                "unit_propagation_count": 4072643
+              }
+            },
+            "jw": {
+              "max_memory_usage": 6504448,
+              "mean_time": 1.376843339,
+              "stats": {
+                "decision_count": 362879,
+                "pure_literal_count": 311760,
+                "unit_propagation_count": 3322097
+              }
+            },
+            "mams": {
+              "max_memory_usage": 5840896,
+              "mean_time": 1.4519493974000002,
+              "stats": {
+                "decision_count": 362879,
+                "pure_literal_count": 311760,
+                "unit_propagation_count": 3322097
+              }
+            },
+            "maxo": {
+              "max_memory_usage": 6283264,
+              "mean_time": 1.3620567834,
+              "stats": {
+                "decision_count": 362879,
+                "pure_literal_count": 311760,
+                "unit_propagation_count": 3322097
+              }
+            },
+            "moms": {
+              "max_memory_usage": 6320128,
+              "mean_time": 1.4211618979999998,
+              "stats": {
+                "decision_count": 362879,
+                "pure_literal_count": 311760,
+                "unit_propagation_count": 3322097
+              }
+            },
+            "random": {
+              "max_memory_usage": 6586368,
+              "mean_time": 3.4407173463999996,
+              "stats": {
+                "decision_count": 551278,
+                "pure_literal_count": 587034,
+                "unit_propagation_count": 6530767
+              }
+            },
+            "sup": {
+              "max_memory_usage": 6074368,
+              "mean_time": 2.4944621672,
+              "stats": {
+                "decision_count": 362879,
+                "pure_literal_count": 311760,
+                "unit_propagation_count": 3322097
+              }
+            },
+            "up": {
+              "max_memory_usage": 5836800,
+              "mean_time": 20.6051551242,
+              "stats": {
+                "decision_count": 364029,
+                "pure_literal_count": 320975,
+                "unit_propagation_count": 4300307
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

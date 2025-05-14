@@ -30,7 +30,7 @@ impl SolverResult for ResolutionResult {
     }
 
     fn stats(&self) -> Self::Stats {
-        unimplemented!()
+        ()
     }
 
     fn build_interpretation(&self, _: &mut impl Explain) -> Option<Interpretation> {

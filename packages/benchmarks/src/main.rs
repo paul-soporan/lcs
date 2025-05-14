@@ -10,10 +10,13 @@ use std::{
 };
 
 use average::{Estimate, Mean};
+use clap::Parser;
 use fork::{fork, waitpid, Fork};
 use lcs::propositional_logic::solvers::cdcl::{
     CdclBranchingHeuristic, CdclRestartStrategy, CdclSolver,
 };
+use lcs::propositional_logic::solvers::dp::DpSolver;
+use lcs::propositional_logic::solvers::resolution::ResolutionSolver;
 use lcs::{
     explanation::DiscardedExplanation,
     propositional_logic::{
@@ -33,7 +36,7 @@ use strum::IntoEnumIterator;
 use tokio::fs;
 use walkdir::{DirEntry, WalkDir};
 
-const TIMEOUT_SECONDS: u64 = 30;
+const TIMEOUT_SECONDS: u64 = 120;
 const RUN_COUNT: usize = 5;
 
 #[derive(Clone)]
@@ -181,47 +184,150 @@ fn bench_process<T: Solve>(
     None
 }
 
-fn bench_file(file: &DirEntry, expected_result: Option<bool>) -> (&Path, serde_json::Value) {
-    let dpll_results = Map::from_iter(DpllBranchingHeuristic::iter().map(|heuristic| {
+fn bench_file(
+    file: &DirEntry,
+    expected_result: Option<bool>,
+    paper_benchmarks: bool,
+) -> (&Path, serde_json::Value) {
+    let data = std::fs::read_to_string(&file.path()).unwrap();
+    let clause_set = data.parse::<ClauseSet>().unwrap();
+
+    let mut resolution = false;
+    let mut dp = false;
+    let mut dpll_heuristics = DpllBranchingHeuristic::iter().collect::<Vec<_>>();
+    let mut cdcl_heuristics = CdclBranchingHeuristic::iter().collect::<Vec<_>>();
+    let mut cdcl_luby = true;
+
+    let path = file.path().to_string_lossy();
+
+    if paper_benchmarks {
+        if path.contains("simple") {
+            resolution = true;
+            dp = true;
+            dpll_heuristics = vec![DpllBranchingHeuristic::First];
+            cdcl_heuristics = vec![CdclBranchingHeuristic::Ordered];
+            cdcl_luby = false;
+        } else if path.contains("uniform/sat") {
+            if clause_set.clauses.len() > 800 {
+                return (file.path(), json!({}));
+            }
+
+            if clause_set.clauses.len() > 600 {
+                dpll_heuristics = vec![DpllBranchingHeuristic::JeroslawWang];
+            }
+        } else if path.contains("uniform/unsat") {
+            if clause_set.clauses.len() > 800 {
+                return (file.path(), json!({}));
+            }
+
+            if clause_set.clauses.len() > 500 {
+                dpll_heuristics = vec![DpllBranchingHeuristic::JeroslawWang];
+            }
+        } else if path.contains("flat") {
+            if clause_set.clauses.len() > 900 {
+                return (file.path(), json!({}));
+            }
+        }
+    }
+
+    let mut result = Map::new();
+
+    if resolution {
         let config = BenchConfig {
             path: file.path().to_path_buf(),
             expected_result,
-            get_solver: &|| DpllSolver::new(heuristic),
+            get_solver: &|| ResolutionSolver::new(),
         };
 
-        (
-            heuristic.to_string(),
-            serde_json::to_value(bench_process(&config)).unwrap(),
-        )
-    }));
+        let resolution_result = serde_json::to_value(bench_process(&config)).unwrap();
 
-    let cdcl_results = Map::from_iter(CdclBranchingHeuristic::iter().map(|heuristic| {
+        result.insert("resolution".to_string(), resolution_result);
+    }
+
+    if dp {
         let config = BenchConfig {
             path: file.path().to_path_buf(),
             expected_result,
-            get_solver: &|| CdclSolver::new(heuristic, CdclRestartStrategy::None),
+            get_solver: &|| DpSolver::new(),
         };
 
-        (
-            heuristic.to_string(),
-            serde_json::to_value(bench_process(&config)).unwrap(),
-        )
-    }));
+        let dp_result = serde_json::to_value(bench_process(&config)).unwrap();
 
-    (
-        file.path(),
-        json!({
-            "dpll": dpll_results,
-            "cdcl": cdcl_results,
-        }),
-    )
+        result.insert("dp".to_string(), dp_result);
+    }
+
+    if !dpll_heuristics.is_empty() {
+        let dpll_results = Map::from_iter(dpll_heuristics.into_iter().map(|heuristic| {
+            let config = BenchConfig {
+                path: file.path().to_path_buf(),
+                expected_result,
+                get_solver: &|| DpllSolver::new(heuristic),
+            };
+
+            (
+                heuristic.to_string(),
+                serde_json::to_value(bench_process(&config)).unwrap(),
+            )
+        }));
+
+        result.insert("dpll".to_string(), json!(dpll_results));
+    }
+
+    if !cdcl_heuristics.is_empty() {
+        let cdcl_results = Map::from_iter(cdcl_heuristics.into_iter().map(|heuristic| {
+            let config = BenchConfig {
+                path: file.path().to_path_buf(),
+                expected_result,
+                get_solver: &|| CdclSolver::new(heuristic, CdclRestartStrategy::None),
+            };
+
+            (
+                heuristic.to_string(),
+                serde_json::to_value(bench_process(&config)).unwrap(),
+            )
+        }));
+
+        result.insert("cdcl".to_string(), json!(cdcl_results));
+    }
+
+    if cdcl_luby {
+        let cdcl_luby_results = Map::from_iter(
+            [CdclBranchingHeuristic::MiniSatVsids]
+                .into_iter()
+                .map(|heuristic| {
+                    let config = BenchConfig {
+                        path: file.path().to_path_buf(),
+                        expected_result,
+                        get_solver: &|| CdclSolver::new(heuristic, CdclRestartStrategy::Luby),
+                    };
+
+                    (
+                        heuristic.to_string(),
+                        serde_json::to_value(bench_process(&config)).unwrap(),
+                    )
+                }),
+        );
+
+        result.insert("cdcl_luby".to_string(), json!(cdcl_luby_results));
+    }
+
+    (file.path(), json!(result))
+}
+
+#[derive(Debug, Parser)]
+struct Args {
+    path_matcher: Option<String>,
+
+    #[arg(long, default_value_t = false)]
+    paper_benchmarks: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let current_dir = env::current_dir()?;
 
-    let path_matcher = env::args().nth(1).unwrap_or_else(|| String::new());
+    let args = Args::parse();
+    let path_matcher = args.path_matcher.unwrap_or_else(|| String::new());
 
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let inputs_dir = manifest_dir.join("inputs");
@@ -265,7 +371,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 file.path().strip_prefix(&current_dir).unwrap().display()
             );
 
-            bench_file(file, expected_result.clone())
+            bench_file(file, expected_result.clone(), args.paper_benchmarks)
+        })
+        .filter(|(_, result)| {
+            if let Some(result) = result.as_object() {
+                if result.is_empty() {
+                    return false;
+                }
+            }
+            true
         })
         .collect::<Vec<_>>();
 
