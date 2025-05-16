@@ -43,6 +43,7 @@ To execute specific benchmarks, you can use the `RAYON_NUM_THREADS=n ./target/re
 The generated results will be saved in the `./output.json` file, with benchmarks from all categories aggregated together.
 
 For comparison, my own results can be found in the `./results` folder, split by category into different files.
+Note: The results for `simple` present in the paper have been accidentally overriden, so `simple.json` instead contains similar results from a different run.
 
 ### Format
 
