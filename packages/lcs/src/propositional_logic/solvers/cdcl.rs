@@ -95,7 +95,7 @@ impl Display for CdclBranchingHeuristic {
             f,
             "{}",
             match self {
-                CdclBranchingHeuristic::Ordered => "first",
+                CdclBranchingHeuristic::Ordered => "ordered",
                 CdclBranchingHeuristic::Random => "random",
                 CdclBranchingHeuristic::MaxOccurrences => "maxo",
                 CdclBranchingHeuristic::MaxOccurrencesMinSize => "moms",
