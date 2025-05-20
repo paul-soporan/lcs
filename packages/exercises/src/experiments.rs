@@ -15,8 +15,6 @@ use lcs::{
 };
 
 pub fn run() {
-    let dpll_branching_heuristic = DpllBranchingHeuristic::First;
-
     let data = fs::read_to_string("test.cnf").unwrap();
     let clause_set = data.parse::<ClauseSet>().unwrap();
 
@@ -52,6 +50,8 @@ pub fn run() {
 
     println!("-------------------------------------");
 
+    let dpll_branching_heuristic = DpllBranchingHeuristic::First;
+
     let instant = Instant::now();
 
     let solver = DpllSolver::new(dpll_branching_heuristic);
@@ -64,14 +64,15 @@ pub fn run() {
         "DPLL result: {}",
         if result.value() { "SAT" } else { "UNSAT" }
     );
-    println!("Decision count: {}", result.decision_count());
+    let stats = result.stats();
+    println!("Decision count: {}", stats.decision_count);
     println!("Elapsed time: {:?}", elapsed);
 
     println!("-------------------------------------");
 
-    let instant = Instant::now();
-
     let cdcl_branching_heuristic = CdclBranchingHeuristic::MiniSatVsids;
+
+    let instant = Instant::now();
 
     let solver = CdclSolver::new(cdcl_branching_heuristic, CdclRestartStrategy::Luby);
     let result =
@@ -83,9 +84,10 @@ pub fn run() {
         "CDCL result: {}",
         if result.value() { "SAT" } else { "UNSAT" }
     );
-    println!("Decision count: {}", result.decision_count());
-    println!("Conflict count: {}", result.conflict_count());
-    println!("Propagation count: {}", result.propagation_count());
-    println!("Restart count: {}", result.restart_count());
+    let stats = result.stats();
+    println!("Decision count: {}", stats.decision_count);
+    println!("Conflict count: {}", stats.conflict_count);
+    println!("Propagation count: {}", stats.propagation_count);
+    println!("Restart count: {}", stats.restart_count);
     println!("Elapsed time: {:?}", elapsed);
 }
