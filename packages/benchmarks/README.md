@@ -57,3 +57,15 @@ Each algorithm benchmark can either:
   - `max_memory_usage` - maximum memory usage in bytes
   - `mean_time` - mean time in seconds
   - `stats` - additional algorithm-specific statistics (e.g. `decision_count`, `conflict_count`), if available
+
+### Computing results presented in the paper
+
+When computing the values presented in the paper, only inputs below a certain number of clauses were considered. The thresholds are as follows:
+
+| Category      | DPLL | CDCL |
+| ------------- | :--: | :--: |
+| uniform-sat   | 600  | 800  |
+| uniform-unsat | 500  | 800  |
+| flat          | 900  | 900  |
+
+The global averages presented in the comparison between DPLL and CDCL only consider inputs with clause counts below the minimum threshold for each category. The global averages for each category are computed by taking the mean of all results from that category, regardless of decision heuristic. In addition, the CDCL global averages do not include results using the `Luby` restart strategy.
